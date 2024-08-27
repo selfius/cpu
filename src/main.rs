@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt;
 
 mod bit;
+mod byte;
 mod nand;
 mod not;
 
@@ -155,8 +156,37 @@ impl DigitalComponent {
         self.inputs[idx] = value.clone();
     }
 
+    fn set_inputs(&mut self, values: Vec<u8>) {
+        assert!(
+            values.len() == self.inputs.len(),
+            "Expected exactly {} inputs",
+            self.inputs.len()
+        );
+        for (idx, input) in self.inputs.iter_mut().enumerate() {
+            *input = match values[idx] {
+                0 => BitState::Off,
+                1 => BitState::On,
+                x => panic!(
+                    "Values can be comprised only of 1s and 0s. Got {} instead",
+                    x
+                ),
+            }
+        }
+    }
+
     fn get_output(&self, idx: usize) -> &BitState {
         &self.outputs[idx]
+    }
+
+    fn get_outputs(&self) -> Vec<u8> {
+        self.outputs
+            .iter()
+            .map(|bit| match bit {
+                BitState::On => 1,
+                BitState::Off => 0,
+                _ => panic!("Some outputs are in undefined state. Can't serialize to 1s and 0s"),
+            })
+            .collect()
     }
 
     fn resolve(&mut self) -> bool {

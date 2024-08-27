@@ -7,12 +7,12 @@ use crate::{
 
 use crate::nand::Nand;
 
-struct Bit {
-    dc: DigitalComponent,
+pub struct Bit {
+    pub dc: DigitalComponent,
 }
 
 impl Bit {
-    fn new() -> Bit {
+    pub fn new() -> Bit {
         let components = (0..=3)
             .map(|num| Nand::named(&num.to_string()).dc())
             .collect();
