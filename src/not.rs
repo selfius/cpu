@@ -5,12 +5,12 @@ use crate::{BitState, ComponentGraph};
 
 use std::collections::HashMap;
 
-struct Not {
-    dc: DigitalComponent,
+pub struct Not {
+    pub dc: DigitalComponent,
 }
 
 impl Not {
-    fn new() -> Not {
+    pub fn new() -> Not {
         let components = vec![Nand::new().dc()];
         let cg = ComponentGraph {
             components,

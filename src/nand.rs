@@ -1,7 +1,7 @@
 use crate::{BitState, DigitalComponent};
 
 pub struct Nand {
-    dc: DigitalComponent,
+    pub dc: DigitalComponent,
 }
 
 impl Nand {

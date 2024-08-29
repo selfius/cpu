@@ -1,6 +1,7 @@
 use std::cmp::Eq;
 use std::collections::{HashMap, HashSet, VecDeque};
 
+mod and;
 mod bit;
 mod bus;
 mod byte;
