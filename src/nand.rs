@@ -20,7 +20,7 @@ impl Nand {
     }
 }
 
-pub fn nand(input: &Vec<BitState>, output: &mut Vec<BitState>) -> bool {
+fn nand(input: &Vec<BitState>, output: &mut Vec<BitState>) -> bool {
     assert!(input.len() == 2, "NAND gate must have exactly two inputs");
     assert!(output.len() == 1, "NAND gate must have exactly one ouput");
     let previous_value = output[0].clone();

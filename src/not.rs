@@ -1,6 +1,8 @@
 use super::composite_component_logic;
-use crate::nand::nand;
-use crate::{BitState, ComponentGraph, DigitalComponent};
+use crate::digital_component::DigitalComponent;
+use crate::nand::Nand;
+use crate::{BitState, ComponentGraph};
+
 use std::collections::HashMap;
 
 struct Not {
@@ -9,7 +11,7 @@ struct Not {
 
 impl Not {
     fn new() -> Not {
-        let components = vec![DigitalComponent::new(2, 1, Box::new(nand))];
+        let components = vec![Nand::new().dc()];
         let cg = ComponentGraph {
             components,
             wiring: HashMap::new(),

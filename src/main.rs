@@ -2,6 +2,7 @@ use std::cmp::Eq;
 use std::collections::{HashMap, HashSet, VecDeque};
 
 mod bit;
+mod bus;
 mod byte;
 mod digital_component;
 mod nand;
