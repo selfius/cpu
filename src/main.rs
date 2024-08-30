@@ -6,6 +6,7 @@ mod bit;
 mod bus;
 mod byte;
 mod digital_component;
+mod enabler;
 mod nand;
 mod not;
 
