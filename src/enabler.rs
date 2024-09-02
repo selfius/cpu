@@ -33,7 +33,7 @@ impl Enabler {
 }
 
 const IO_PINS_NUMBER: usize = 8;
-const ENABLE_PIN_IDX: usize = 8;
+pub const ENABLE_PIN_IDX: usize = 8;
 
 fn map_inputs(inputs: &Vec<BitState>, components: &mut Vec<DigitalComponent>) {
     for input_idx in 0..IO_PINS_NUMBER {

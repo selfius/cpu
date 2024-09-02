@@ -9,6 +9,7 @@ mod digital_component;
 mod enabler;
 mod nand;
 mod not;
+mod register;
 
 use digital_component::{ComponentLogic, DigitalComponent};
 
@@ -36,6 +37,13 @@ struct ComponentGraph {
 }
 
 impl ComponentGraph {
+    pub fn new(components: Vec<DigitalComponent>) -> ComponentGraph {
+        ComponentGraph {
+            components,
+            wiring: HashMap::new(),
+        }
+    }
+
     fn connect(&mut self, output: (ComponentId, Output), input: (ComponentId, Input)) {
         let input_set = self.wiring.entry(output).or_insert(HashSet::new());
         input_set.insert(input);
