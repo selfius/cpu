@@ -1,12 +1,13 @@
 use std::cmp::Eq;
 use std::collections::{HashMap, HashSet, VecDeque};
+use std::ops::Range;
 
 mod and;
 mod bit;
-mod bus;
 mod byte;
 mod digital_component;
 mod enabler;
+mod intersections;
 mod nand;
 mod not;
 mod register;
@@ -28,7 +29,7 @@ struct Output(usize);
 #[derive(Eq, PartialEq, Hash)]
 struct Input(usize);
 
-#[derive(Eq, PartialEq, Hash)]
+#[derive(Eq, PartialEq, Hash, Clone)]
 struct ComponentId(usize);
 
 struct ComponentGraph {
@@ -47,6 +48,20 @@ impl ComponentGraph {
     fn connect(&mut self, output: (ComponentId, Output), input: (ComponentId, Input)) {
         let input_set = self.wiring.entry(output).or_insert(HashSet::new());
         input_set.insert(input);
+    }
+
+    fn connect_range(
+        &mut self,
+        outputs: (ComponentId, Range<usize>),
+        inputs: (ComponentId, Range<usize>),
+    ) {
+        for (output, input) in outputs.1.zip(inputs.1) {
+            let input_set = self
+                .wiring
+                .entry((outputs.0.clone(), Output(output)))
+                .or_default();
+            input_set.insert((inputs.0.clone(), Input(input)));
+        }
     }
 }
 

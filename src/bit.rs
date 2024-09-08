@@ -16,7 +16,7 @@ impl Bit {
         let components = (0..=3)
             .map(|num| Nand::named(&num.to_string()).dc())
             .collect();
-        let mut wiring = HashMap::new();
+        let wiring = HashMap::new();
         let mut cg = ComponentGraph { components, wiring };
         cg.connect((ComponentId(0), Output(0)), (ComponentId(1), Input(0)));
         cg.connect((ComponentId(0), Output(0)), (ComponentId(2), Input(0)));

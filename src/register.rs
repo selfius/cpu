@@ -10,6 +10,10 @@ pub struct Register {
 
 impl Register {
     pub fn new() -> Register {
+        Register::named("Register")
+    }
+
+    pub fn named(name: &str) -> Register {
         let components = vec![Byte::new().dc, Enabler::new().dc];
         let mut cg = ComponentGraph::new(components);
         for pin_pair_idx in 0..IO_PINS_NUMBER {
@@ -19,7 +23,7 @@ impl Register {
             )
         }
         Register {
-            dc: DigitalComponent::new(
+            dc: DigitalComponent::named(
                 IO_PINS_NUMBER + 2,
                 IO_PINS_NUMBER,
                 Box::new(composite_component_logic(
@@ -27,14 +31,15 @@ impl Register {
                     Box::new(map_inputs),
                     Box::new(map_outputs),
                 )),
+                name,
             ),
         }
     }
 }
 
-const IO_PINS_NUMBER: usize = 8;
-const ENABLE_PIN_IDX: usize = 8;
-const SET_VALUE_IN_IDX: usize = 9;
+pub const IO_PINS_NUMBER: usize = 8;
+pub const ENABLE_PIN_IDX: usize = 8;
+pub const SET_VALUE_IN_IDX: usize = 9;
 
 fn map_inputs(inputs: &Vec<BitState>, components: &mut Vec<DigitalComponent>) {
     for input_idx in 0..IO_PINS_NUMBER {
