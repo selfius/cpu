@@ -3,11 +3,11 @@ use std::collections::HashMap;
 use super::composite_component_logic;
 use crate::digital_component::DigitalComponent;
 use crate::nand::Nand;
-use crate::not::Not;
+use crate::not::not;
 use crate::{BitState, ComponentGraph, ComponentId, Input, Output};
 
 pub fn make_and(name: &str) -> DigitalComponent {
-    let components = vec![Nand::named("nand #1").dc, Not::new().dc];
+    let components = vec![Nand::named("nand #1").dc, not("not #1")];
     let mut cg = ComponentGraph {
         components,
         wiring: HashMap::new(),
@@ -49,7 +49,7 @@ pub fn cascade_and(name: &str, inputs_num: usize) -> DigitalComponent {
             (ComponentId(component_idx + 1), Input(1)),
         );
     }
-    DigitalComponent::new(
+    DigitalComponent::named(
         inputs_num,
         1,
         Box::new(composite_component_logic(
@@ -57,6 +57,7 @@ pub fn cascade_and(name: &str, inputs_num: usize) -> DigitalComponent {
             Box::new(map_cascaded_inputs),
             Box::new(map_cascaded_outputs),
         )),
+        name,
     )
 }
 

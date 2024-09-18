@@ -35,6 +35,10 @@ impl DigitalComponent {
         dc
     }
 
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
     pub fn set_input(&mut self, idx: usize, value: &BitState) {
         self.inputs[idx] = value.clone();
     }
@@ -55,6 +59,10 @@ impl DigitalComponent {
                 ),
             }
         }
+    }
+
+    pub fn get_input_num(&self) -> usize {
+        self.inputs.len()
     }
 
     pub fn get_output(&self, idx: usize) -> &BitState {

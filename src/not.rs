@@ -5,38 +5,31 @@ use crate::{BitState, ComponentGraph};
 
 use std::collections::HashMap;
 
-pub struct Not {
-    pub dc: DigitalComponent,
+pub fn not(name: &str) -> DigitalComponent {
+    let components = vec![Nand::new().dc()];
+    let cg = ComponentGraph {
+        components,
+        wiring: HashMap::new(),
+    };
+    DigitalComponent::named(
+        1,
+        1,
+        Box::new(composite_component_logic(
+            cg,
+            Box::new(map_inputs),
+            Box::new(map_outputs),
+        )),
+        name,
+    )
 }
 
-impl Not {
-    pub fn new() -> Not {
-        let components = vec![Nand::new().dc()];
-        let cg = ComponentGraph {
-            components,
-            wiring: HashMap::new(),
-        };
-        Not {
-            dc: DigitalComponent::new(
-                1,
-                1,
-                Box::new(composite_component_logic(
-                    cg,
-                    Box::new(Not::map_inputs),
-                    Box::new(Not::map_outputs),
-                )),
-            ),
-        }
-    }
+fn map_inputs(inputs: &Vec<BitState>, components: &mut Vec<DigitalComponent>) {
+    components[0].set_input(0, &inputs[0]);
+    components[0].set_input(1, &inputs[0]);
+}
 
-    fn map_inputs(inputs: &Vec<BitState>, components: &mut Vec<DigitalComponent>) {
-        components[0].set_input(0, &inputs[0]);
-        components[0].set_input(1, &inputs[0]);
-    }
-
-    fn map_outputs(outputs: &mut Vec<BitState>, components: &mut Vec<DigitalComponent>) {
-        outputs[0] = components[0].get_output(0).clone();
-    }
+fn map_outputs(outputs: &mut Vec<BitState>, components: &mut Vec<DigitalComponent>) {
+    outputs[0] = components[0].get_output(0).clone();
 }
 
 #[cfg(test)]
@@ -45,13 +38,13 @@ mod tests {
 
     #[test]
     fn not_gate() {
-        let mut not_gate = Not::new();
-        not_gate.dc.set_input(0, &BitState::On);
-        not_gate.dc.resolve();
-        assert_eq!(not_gate.dc.get_output(0), &BitState::Off);
+        let mut not_gate = not("");
+        not_gate.set_input(0, &BitState::On);
+        not_gate.resolve();
+        assert_eq!(not_gate.get_output(0), &BitState::Off);
 
-        not_gate.dc.set_input(0, &BitState::Off);
-        assert_eq!(not_gate.dc.resolve(), true);
-        assert_eq!(not_gate.dc.get_output(0), &BitState::On);
+        not_gate.set_input(0, &BitState::Off);
+        assert_eq!(not_gate.resolve(), true);
+        assert_eq!(not_gate.get_output(0), &BitState::On);
     }
 }

@@ -5,6 +5,7 @@ use std::ops::Range;
 mod and;
 mod bit;
 mod byte;
+mod decoder;
 mod digital_component;
 mod enabler;
 mod intersections;
@@ -14,7 +15,10 @@ mod register;
 
 use digital_component::{ComponentLogic, DigitalComponent};
 
-fn main() {}
+fn main() {
+    //just to shut up clippy for the time being
+    decoder::decoder("test", 3);
+}
 
 #[derive(Clone, Debug, PartialEq)]
 enum BitState {
@@ -46,7 +50,26 @@ impl ComponentGraph {
     }
 
     fn connect(&mut self, output: (ComponentId, Output), input: (ComponentId, Input)) {
-        let input_set = self.wiring.entry(output).or_insert(HashSet::new());
+        let (ComponentId(output_component_id), Output(output_idx)) = output;
+        assert!(
+            self.components[output_component_id].get_outputs_num() > output_idx,
+            "{} component has only {} outputs. Got {}.",
+            self.components[output_component_id].name(),
+            self.components[output_component_id].get_outputs_num(),
+            output_idx
+        );
+        let (ComponentId(input_component_id), Input(input_idx)) = input;
+        assert!(
+            self.components[input_component_id].get_input_num() > input_idx,
+            "{} component has only {} inputs. Got {}.",
+            self.components[input_component_id].name(),
+            self.components[input_component_id].get_input_num(),
+            input_idx
+        );
+
+        assert!(self.components[input.0 .0].get_input_num() > input.1 .0);
+
+        let input_set = self.wiring.entry(output).or_default();
         input_set.insert(input);
     }
 
@@ -65,10 +88,13 @@ impl ComponentGraph {
     }
 }
 
+type InputMappingFunc = dyn FnMut(&Vec<BitState>, &mut Vec<DigitalComponent>);
+type OutputMappingFunc = dyn FnMut(&mut Vec<BitState>, &mut Vec<DigitalComponent>);
+
 fn composite_component_logic(
     mut component_graph: ComponentGraph,
-    mut inputs_mapping: Box<dyn FnMut(&Vec<BitState>, &mut Vec<DigitalComponent>) -> ()>,
-    mut outputs_mapping: Box<dyn FnMut(&mut Vec<BitState>, &mut Vec<DigitalComponent>) -> ()>,
+    mut inputs_mapping: Box<InputMappingFunc>,
+    mut outputs_mapping: Box<OutputMappingFunc>,
 ) -> Box<ComponentLogic> {
     Box::new(move |input: &Vec<BitState>, output: &mut Vec<BitState>| {
         let mut events: VecDeque<ComponentId> = (0..component_graph.components.len())
