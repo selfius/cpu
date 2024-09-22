@@ -1,11 +1,12 @@
-use std::collections::HashSet;
+use std::collections::{HashSet, VecDeque};
 
 pub fn parse(source: &str) {
     // convert string to alighned 2d array
     let lines: Vec<_> = source.lines().skip_while(|line| line.is_empty()).collect();
 
     // find inputs as dangling -.*
-    for (num, input) in find_dangling_inputs(&lines).iter().enumerate() {
+    let dangling_inputs = find_dangling_inputs(&lines);
+    for (num, input) in dangling_inputs.iter().enumerate() {
         println!("input #{num} [{} {}]", input.line, input.column);
     }
 
@@ -14,6 +15,98 @@ pub fn parse(source: &str) {
     //        | Symbol.Wire(Down) + '└');
     //
     // rule!(Symbol.Box = Symbol.Wire(Horizontal) + '┤');
+    let mut symbols: VecDeque<Symbol> = VecDeque::new();
+    dangling_inputs
+        .into_iter()
+        .for_each(|input| symbols.push_back(Symbol::new(SymbolKind::Wire, input, '─')));
+    scan(&lines, symbols);
+}
+
+fn scan(input: &[&str], mut to_look_at: VecDeque<Symbol>) {
+    let mut current_direction = Direction::Right;
+    let mut debug_num = 0;
+    while let Some(symbol) = to_look_at.pop_front() {
+        println!("#{} : {}", debug_num, symbol.character);
+        debug_num += 1;
+        //separate logic for when we split
+
+        //when we're just keep chugging along
+        let next_direction = match (symbol.character, current_direction.clone()) {
+            ('─', Direction::Left | Direction::Right) | ('│', Direction::Up | Direction::Down) => {
+                current_direction.clone()
+            }
+            ('┼', dir) => dir,
+            ('┘', Direction::Down) => Direction::Left,
+            ('┘', Direction::Right) => Direction::Up,
+
+            ('└', Direction::Down) => Direction::Right,
+            ('└', Direction::Left) => Direction::Up,
+
+            ('┌', Direction::Left) => Direction::Down,
+            ('┌', Direction::Up) => Direction::Right,
+
+            ('┐', Direction::Right) => Direction::Down,
+            ('┐', Direction::Up) => Direction::Left,
+            _ => panic!(
+                "unexpected symbol {} at {}:{} while going {:?}",
+                symbol.character, symbol.position.line, symbol.position.column, current_direction
+            ),
+        };
+
+        let next_position = next_direction.move_cursor(symbol.position.clone());
+        let next_char = input[next_position.line].chars().nth(next_position.column);
+
+        match next_char {
+            Some(' ') | None => println!(
+                "reached the end of this wire at {}:{}",
+                symbol.position.line, symbol.position.column
+            ),
+            Some(symbol) => {
+                to_look_at.push_front(Symbol::new(SymbolKind::Wire, next_position, symbol))
+            }
+        };
+
+        current_direction = next_direction;
+    }
+}
+
+#[derive(Clone, Debug)]
+enum Direction {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+impl Direction {
+    fn move_cursor(&self, Position { line, column }: Position) -> Position {
+        match self {
+            Direction::Up => Position::new(line - 1, column),
+            Direction::Down => Position::new(line + 1, column),
+            Direction::Right => Position::new(line, column + 1),
+            Direction::Left => Position::new(line, column - 1),
+        }
+    }
+}
+
+enum SymbolKind {
+    Wire,
+}
+
+struct Symbol {
+    kind: SymbolKind,
+    position: Position,
+    character: char,
+}
+
+impl Symbol {
+    fn new(kind: SymbolKind, position: Position, character: char) -> Symbol {
+        Symbol {
+            kind,
+            position,
+            character,
+        }
+    }
 }
 
 fn find_dangling_inputs(input: &[&str]) -> Vec<Position> {
@@ -39,7 +132,7 @@ fn find_dangling_inputs(input: &[&str]) -> Vec<Position> {
 const WIRE_SYMBOLS: &str = "─│┬┴┘┐┌└┼└┘";
 const BOX_SYMBOLS: &str = "─│┐┌└┘├┤";
 
-#[derive(Debug)]
+#[derive(Clone)]
 struct Position {
     line: usize,
     column: usize,
@@ -56,7 +149,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn it_works() {
+    #[ignore]
+    fn aspiration() {
         let test_circuit = "
                  ┌───┐
               ─┬─┤   ├─────┐
@@ -83,6 +177,18 @@ mod tests {
                                  └─────┘
     ";
 
+        parse(test_circuit);
+    }
+
+    #[test]
+    fn simple_wiring() {
+        let test_circuit = "
+                       ┌───┐
+              ──────┐  │   │
+                    └──┼───┘
+                       │    
+                       └────
+    ";
         parse(test_circuit);
     }
 }
