@@ -1,4 +1,5 @@
 use std::collections::{HashSet, VecDeque};
+use std::fmt::{Display, Error, Formatter};
 
 pub fn parse(source: &str) {
     // convert string to alighned 2d array
@@ -25,8 +26,14 @@ pub fn parse(source: &str) {
 fn scan(input: &[&str], mut to_look_at: VecDeque<Symbol>) {
     let mut current_direction = Direction::Right;
     let mut debug_num = 0;
+    let mut new_component = true;
+    let mut wire_start = Position::new(0, 0);
     while let Some(symbol) = to_look_at.pop_front() {
         println!("#{} : {}", debug_num, symbol.character);
+        if new_component {
+            wire_start = symbol.position.clone();
+        }
+        new_component = false;
         debug_num += 1;
         //separate logic for when we split
 
@@ -48,8 +55,8 @@ fn scan(input: &[&str], mut to_look_at: VecDeque<Symbol>) {
             ('┐', Direction::Right) => Direction::Down,
             ('┐', Direction::Up) => Direction::Left,
             _ => panic!(
-                "unexpected symbol {} at {}:{} while going {:?}",
-                symbol.character, symbol.position.line, symbol.position.column, current_direction
+                "unexpected symbol {} at {} while going {:?}",
+                symbol.character, symbol.position, current_direction
             ),
         };
 
@@ -57,12 +64,15 @@ fn scan(input: &[&str], mut to_look_at: VecDeque<Symbol>) {
         let next_char = input[next_position.line].chars().nth(next_position.column);
 
         match next_char {
-            Some(' ') | None => println!(
-                "reached the end of this wire at {}:{}",
-                symbol.position.line, symbol.position.column
-            ),
+            Some(' ') | None => {
+                println!(
+                    "reached the end of this wire that start at {} and ended at {}",
+                    wire_start, symbol.position
+                );
+                new_component = true;
+            }
             Some(symbol) => {
-                to_look_at.push_front(Symbol::new(SymbolKind::Wire, next_position, symbol))
+                to_look_at.push_front(Symbol::new(SymbolKind::Wire, next_position, symbol));
             }
         };
 
@@ -144,6 +154,12 @@ impl Position {
     }
 }
 
+impl Display for Position {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        write!(f, "{}:{}", self.line, self.column)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -186,7 +202,7 @@ mod tests {
                        ┌───┐
               ──────┐  │   │
                     └──┼───┘
-                       │    
+               ────────┼──  
                        └────
     ";
         parse(test_circuit);
