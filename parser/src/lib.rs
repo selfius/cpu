@@ -1,9 +1,9 @@
 use std::collections::{HashSet, VecDeque};
 use std::fmt::{Display, Error, Formatter};
 
-pub fn parse(source: &str) {
+pub fn parse(source: &str) -> Result<Vec<Wire>, ParseError> {
     // convert string to alighned 2d array
-    let lines: Vec<_> = source.lines().skip_while(|line| line.is_empty()).collect();
+    let lines: Vec<_> = source.lines().collect();
 
     // find inputs as dangling -.*
     let dangling_inputs = find_dangling_inputs(&lines);
@@ -12,19 +12,26 @@ pub fn parse(source: &str) {
     }
 
     // put them in a stack or a queue and start untangling according to rules
-    // rule!(Symbol.Wire(Right) = Symbol.Wire(Right) + '─'
-    //        | Symbol.Wire(Down) + '└');
-    //
-    // rule!(Symbol.Box = Symbol.Wire(Horizontal) + '┤');
     let mut symbols: VecDeque<Symbol> = VecDeque::new();
     dangling_inputs
         .into_iter()
-        .for_each(|input| symbols.push_back(Symbol::new(SymbolKind::Wire, input, '─')));
-    scan(&lines, symbols);
+        .for_each(|input| symbols.push_back(Symbol::new(input, '─', Direction::Right)));
+    scan(&lines, symbols)
 }
 
-fn scan(input: &[&str], mut to_look_at: VecDeque<Symbol>) {
-    let mut current_direction = Direction::Right;
+#[derive(Debug)]
+pub enum ParseError {
+    UnexpectedSymbol,
+}
+
+#[derive(Debug, PartialEq)]
+pub struct Wire {
+    start: Position,
+    end: Position,
+}
+
+fn scan(input: &[&str], mut to_look_at: VecDeque<Symbol>) -> Result<Vec<Wire>, ParseError> {
+    let mut found_wires = vec![];
     let mut debug_num = 0;
     let mut new_component = true;
     let mut wire_start = Position::new(0, 0);
@@ -35,12 +42,13 @@ fn scan(input: &[&str], mut to_look_at: VecDeque<Symbol>) {
         }
         new_component = false;
         debug_num += 1;
-        //separate logic for when we split
-
+        if debug_num > 1000 {
+            panic!("we're doing something wrong");
+        }
         //when we're just keep chugging along
-        let next_direction = match (symbol.character, current_direction.clone()) {
+        let next_direction = match (symbol.character, symbol.direction.clone()) {
             ('─', Direction::Left | Direction::Right) | ('│', Direction::Up | Direction::Down) => {
-                current_direction.clone()
+                symbol.direction.clone()
             }
             ('┼', dir) => dir,
             ('┘', Direction::Down) => Direction::Left,
@@ -54,30 +62,36 @@ fn scan(input: &[&str], mut to_look_at: VecDeque<Symbol>) {
 
             ('┐', Direction::Right) => Direction::Down,
             ('┐', Direction::Up) => Direction::Left,
-            _ => panic!(
-                "unexpected symbol {} at {} while going {:?}",
-                symbol.character, symbol.position, current_direction
-            ),
+            _ => return Err(ParseError::UnexpectedSymbol),
         };
 
         let next_position = next_direction.move_cursor(symbol.position.clone());
         let next_char = input[next_position.line].chars().nth(next_position.column);
 
         match next_char {
-            Some(' ') | None => {
-                println!(
-                    "reached the end of this wire that start at {} and ended at {}",
-                    wire_start, symbol.position
-                );
+            Some('┬') => {
+                found_wires.push(Wire {
+                    start: wire_start.clone(),
+                    end: next_position.clone(),
+                });
+                to_look_at.push_front(Symbol::new(next_position.clone(), '─', symbol.direction));
+                to_look_at.push_front(Symbol::new(next_position, '│', Direction::Down));
+
                 new_component = true;
             }
-            Some(symbol) => {
-                to_look_at.push_front(Symbol::new(SymbolKind::Wire, next_position, symbol));
+            Some(' ') | None => {
+                found_wires.push(Wire {
+                    start: wire_start.clone(),
+                    end: symbol.position.clone(),
+                });
+                new_component = true;
+            }
+            Some(character) => {
+                to_look_at.push_front(Symbol::new(next_position, character, next_direction));
             }
         };
-
-        current_direction = next_direction;
     }
+    Ok(found_wires)
 }
 
 #[derive(Clone, Debug)]
@@ -99,20 +113,16 @@ impl Direction {
     }
 }
 
-enum SymbolKind {
-    Wire,
-}
-
 struct Symbol {
-    kind: SymbolKind,
+    direction: Direction,
     position: Position,
     character: char,
 }
 
 impl Symbol {
-    fn new(kind: SymbolKind, position: Position, character: char) -> Symbol {
+    fn new(position: Position, character: char, direction: Direction) -> Symbol {
         Symbol {
-            kind,
+            direction,
             position,
             character,
         }
@@ -142,7 +152,7 @@ fn find_dangling_inputs(input: &[&str]) -> Vec<Position> {
 const WIRE_SYMBOLS: &str = "─│┬┴┘┐┌└┼└┘";
 const BOX_SYMBOLS: &str = "─│┐┌└┘├┤";
 
-#[derive(Clone)]
+#[derive(Clone, Debug, PartialEq)]
 struct Position {
     line: usize,
     column: usize,
@@ -193,18 +203,39 @@ mod tests {
                                  └─────┘
     ";
 
-        parse(test_circuit);
+        let _ = parse(test_circuit);
     }
 
     #[test]
     fn simple_wiring() {
         let test_circuit = "
                        ┌───┐
-              ──────┐  │   │
-                    └──┼───┘
-               ────────┼──  
-                       └────
+              ───┬──┐  │   │
+                 │  └──┼───┘
+               ──┼─────┼──  
+                 │     └────
     ";
-        parse(test_circuit);
+        match parse(test_circuit) {
+            Ok(wires) => {
+                assert!(wires.contains(&Wire {
+                    start: Position::new(2, 14),
+                    end: Position::new(2, 17)
+                }));
+                assert!(wires.contains(&Wire {
+                    start: Position::new(2, 17),
+                    end: Position::new(5, 17)
+                }));
+                assert!(wires.contains(&Wire {
+                    start: Position::new(2, 17),
+                    end: Position::new(5, 27)
+                }));
+                assert!(wires.contains(&Wire {
+                    start: Position::new(4, 15),
+                    end: Position::new(4, 25)
+                }));
+            }
+
+            _ => panic!("unexpected parse error"),
+        }
     }
 }
