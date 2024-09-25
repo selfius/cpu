@@ -3,6 +3,7 @@ use std::fmt::{Display, Error, Formatter};
 #[derive(Debug)]
 pub enum ParseError {
     UnexpectedSymbol,
+    Looping,
 }
 
 pub enum ParsingMode {

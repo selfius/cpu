@@ -12,9 +12,6 @@ pub fn parse(source: &str) -> Result<Vec<Node>, ParseError> {
 
     // find inputs as dangling -.*
     let dangling_inputs = find_dangling_inputs(&lines);
-    for (num, input) in dangling_inputs.iter().enumerate() {
-        println!("input #{num} [{} {}]", input.line, input.column);
-    }
 
     // put them in a stack or a queue and start untangling according to rules
     let mut symbols: VecDeque<Symbol> = VecDeque::new();
@@ -32,14 +29,13 @@ fn scan(input: &[&str], mut to_look_at: VecDeque<Symbol>) -> Result<Vec<Node>, P
     let mut new_component = true;
     let mut wire_start = Position::new(0, 0);
     while let Some(symbol) = to_look_at.pop_front() {
-        println!("#{} : {}", debug_num, symbol.character);
         if new_component {
             wire_start = symbol.position.clone();
         }
         new_component = false;
         debug_num += 1;
-        if debug_num > 1000 {
-            panic!("we're doing something wrong");
+        if debug_num > 10000 {
+            return Err(ParseError::Looping);
         }
 
         if let Some(node) = match symbol.mode {
