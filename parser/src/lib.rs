@@ -1,10 +1,13 @@
 use std::collections::{HashSet, VecDeque};
 
 mod types;
-use types::{Direction, Node, Symbol, ParseError, Position, ParsingMode};
+use types::{Direction, Node, ParseError, ParsingMode, Position, Symbol};
 
 mod wires;
 use wires::scan_for_wire_end;
+
+mod r#box;
+use r#box::{scan_box, BoxParsingContext};
 
 pub fn parse(source: &str) -> Result<Vec<Node>, ParseError> {
     // convert string to alighned 2d array
@@ -21,18 +24,26 @@ pub fn parse(source: &str) -> Result<Vec<Node>, ParseError> {
     scan(&lines, symbols)
 }
 
-
-
 fn scan(input: &[&str], mut to_look_at: VecDeque<Symbol>) -> Result<Vec<Node>, ParseError> {
     let mut components = vec![];
     let mut debug_num = 0;
     let mut new_component = true;
     let mut wire_start = Position::new(0, 0);
+    let mut box_parsing_context = BoxParsingContext::new(&wire_start);
     while let Some(symbol) = to_look_at.pop_front() {
         if new_component {
-            wire_start = symbol.position.clone();
+            match symbol.mode {
+                ParsingMode::Wire => {
+                    wire_start = symbol.position.clone();
+                }
+                ParsingMode::Box => {
+                    box_parsing_context = BoxParsingContext::new(&symbol.position);
+                }
+            }
         }
+
         new_component = false;
+
         debug_num += 1;
         if debug_num > 10000 {
             return Err(ParseError::Looping);
@@ -40,22 +51,13 @@ fn scan(input: &[&str], mut to_look_at: VecDeque<Symbol>) -> Result<Vec<Node>, P
 
         if let Some(node) = match symbol.mode {
             ParsingMode::Wire => scan_for_wire_end(input, symbol, &mut to_look_at, &wire_start),
-            ParsingMode::Box => scan_box(input, symbol, &mut to_look_at),
+            ParsingMode::Box => scan_box(input, symbol, &mut to_look_at, &mut box_parsing_context),
         }? {
             new_component = true;
             components.push(node);
         }
     }
     Ok(components)
-}
-
-fn scan_box(
-    _input: &[&str],
-    symbol: Symbol,
-    _to_look_at: &mut VecDeque<Symbol>,
-) -> Result<Option<Node>, ParseError> {
-    println!("Found Box pin at {}", symbol.position);
-    unimplemented!();
 }
 
 fn find_dangling_inputs(input: &[&str]) -> Vec<Position> {
@@ -80,7 +82,6 @@ fn find_dangling_inputs(input: &[&str]) -> Vec<Position> {
 
 const WIRE_SYMBOLS: &str = "─│┬┴┘┐┌└┼└┘";
 const BOX_SYMBOLS: &str = "─│┐┌└┘├┤";
-
 
 #[cfg(test)]
 mod tests {
@@ -152,7 +153,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
     fn finds_boxes() {
         let test_circuit = "
                  ┌───┐
@@ -162,14 +162,14 @@ mod tests {
                └────  
     ";
         match parse(test_circuit) {
-            Ok(wires) => {
-                assert!(wires.contains(&Node::Wire {
-                    start: Position::new(2, 14),
-                    end: Position::new(2, 17)
+            Ok(components) => {
+                assert!(components.contains(&Node::Box {
+                    top_left: Position::new(1, 17),
+                    bottom_right: Position::new(3, 21)
                 }));
+                assert_eq!(components.len(), 5);
             }
-
-            _ => panic!("unexpected parse error"),
+            Err(error) => panic!("{:?}", error),
         }
     }
 }

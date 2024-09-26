@@ -2,8 +2,13 @@ use std::fmt::{Display, Error, Formatter};
 
 #[derive(Debug)]
 pub enum ParseError {
-    UnexpectedSymbol,
+    UnexpectedSymbol(Position),
     Looping,
+    UnexpectedState {
+        position: Position,
+        message: &'static str,
+    },
+    EndOfInput,
 }
 
 pub enum ParsingMode {
@@ -50,7 +55,12 @@ pub struct Symbol {
 }
 
 impl Symbol {
-    pub fn new(position: Position, character: char, direction: Direction, mode: ParsingMode) -> Symbol {
+    pub fn new(
+        position: Position,
+        character: char,
+        direction: Direction,
+        mode: ParsingMode,
+    ) -> Symbol {
         Symbol {
             direction,
             position,

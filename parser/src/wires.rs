@@ -1,5 +1,5 @@
+use crate::types::{Direction, Node, ParseError, ParsingMode, Position, Symbol};
 use std::collections::VecDeque;
-use crate::types::{Direction, Node, Symbol, ParseError, Position, ParsingMode};
 
 pub fn scan_for_wire_end(
     input: &[&str],
@@ -7,7 +7,6 @@ pub fn scan_for_wire_end(
     to_look_at: &mut VecDeque<Symbol>,
     wire_start: &Position,
 ) -> Result<Option<Node>, ParseError> {
-    //when we're just keep chugging along
     let next_direction = match (symbol.character, symbol.direction.clone()) {
         ('─', Direction::Left | Direction::Right) | ('│', Direction::Up | Direction::Down) => {
             symbol.direction.clone()
@@ -24,7 +23,7 @@ pub fn scan_for_wire_end(
 
         ('┐', Direction::Right) => Direction::Down,
         ('┐', Direction::Up) => Direction::Left,
-        _ => return Err(ParseError::UnexpectedSymbol),
+        _ => return Err(ParseError::UnexpectedSymbol(symbol.position)),
     };
 
     let next_position = next_direction.move_cursor(symbol.position.clone());
@@ -53,7 +52,7 @@ pub fn scan_for_wire_end(
             to_look_at.push_front(Symbol::new(
                 next_position.clone(),
                 box_pin.unwrap(),
-                symbol.direction,
+                Direction::Up,
                 ParsingMode::Box,
             ));
             Some(Node::Wire {

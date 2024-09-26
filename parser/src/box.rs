@@ -1,0 +1,108 @@
+use crate::types::{Direction, Node, ParseError, ParsingMode, Position, Symbol};
+use std::collections::{HashSet, VecDeque};
+
+pub fn scan_box(
+    input: &[&str],
+    symbol: Symbol,
+    to_look_at: &mut VecDeque<Symbol>,
+    context: &mut BoxParsingContext,
+) -> Result<Option<Node>, ParseError> {
+    if let '┌' | '└' | '┐' | '┘' = symbol.character {
+        if context.corners.contains(&symbol.character) {
+            return Err(ParseError::UnexpectedSymbol(symbol.position));
+        }
+        context.corners.insert(symbol.character);
+    }
+
+    match symbol.character {
+        '┌' => context.top_left = Some(symbol.position.clone()),
+        '┘' => context.bottom_right = Some(symbol.position.clone()),
+        _ => (),
+    }
+
+    let next_direction = match (symbol.character, symbol.direction.clone()) {
+        ('─', Direction::Left | Direction::Right)
+        | ('│', Direction::Up | Direction::Down)
+        | ('┤', Direction::Up | Direction::Down)
+        | ('├', Direction::Up | Direction::Down) => symbol.direction.clone(),
+        ('┘', Direction::Down) => Direction::Left,
+        ('┘', Direction::Right) => Direction::Up,
+
+        ('└', Direction::Down) => Direction::Right,
+        ('└', Direction::Left) => Direction::Up,
+
+        ('┌', Direction::Left) => Direction::Down,
+        ('┌', Direction::Up) => Direction::Right,
+
+        ('┐', Direction::Right) => Direction::Down,
+        ('┐', Direction::Up) => Direction::Left,
+        _ => return Err(ParseError::UnexpectedSymbol(symbol.position)),
+    };
+
+    let next_position = next_direction.move_cursor(symbol.position.clone());
+    if next_position == context.starting_position {
+        return Ok(Some(Node::Box {
+            top_left: context.top_left.take().ok_or(ParseError::UnexpectedState {
+                position: symbol.position.clone(),
+                message: "at this point we should always know where the top left corner is",
+            })?,
+            bottom_right: context
+                .bottom_right
+                .take()
+                .ok_or(ParseError::UnexpectedState {
+                    position: symbol.position,
+                    message: "at this point we should always know where the bottom right corner is",
+                })?,
+        }));
+    }
+
+    let next_char = input[next_position.line]
+        .chars()
+        .nth(next_position.column)
+        .ok_or(ParseError::EndOfInput)?;
+    match next_char {
+        '├' => {
+            to_look_at.push_back(Symbol::new(
+                next_position.clone(),
+                '─',
+                Direction::Right,
+                ParsingMode::Wire,
+            ));
+        }
+        '┤' => {
+            to_look_at.push_back(Symbol::new(
+                next_position.clone(),
+                '─',
+                Direction::Left,
+                ParsingMode::Wire,
+            ));
+        }
+        _ => (),
+    }
+
+    to_look_at.push_front(Symbol::new(
+        next_position,
+        next_char,
+        next_direction,
+        ParsingMode::Box,
+    ));
+    Ok(None)
+}
+
+pub struct BoxParsingContext {
+    starting_position: Position,
+    corners: HashSet<char>,
+    top_left: Option<Position>,
+    bottom_right: Option<Position>,
+}
+
+impl BoxParsingContext {
+    pub fn new(starting_position: &Position) -> BoxParsingContext {
+        BoxParsingContext {
+            starting_position: starting_position.clone(),
+            corners: HashSet::new(),
+            top_left: None,
+            bottom_right: None,
+        }
+    }
+}
