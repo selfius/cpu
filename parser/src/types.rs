@@ -11,6 +11,7 @@ pub enum ParseError {
     EndOfInput,
 }
 
+#[derive(Debug)]
 pub enum ParsingMode {
     Wire,
     Box,
@@ -47,10 +48,11 @@ impl Direction {
     }
 }
 
+#[derive(Debug)]
 pub struct Symbol {
     pub position: Position,
     pub character: char,
-    pub direction: Direction,
+    pub direction: &'static Direction,
     pub mode: ParsingMode,
 }
 
@@ -58,7 +60,7 @@ impl Symbol {
     pub fn new(
         position: Position,
         character: char,
-        direction: Direction,
+        direction: &'static Direction,
         mode: ParsingMode,
     ) -> Symbol {
         Symbol {
@@ -70,7 +72,7 @@ impl Symbol {
     }
 }
 
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Position {
     pub line: usize,
     pub column: usize,

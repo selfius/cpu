@@ -1,12 +1,12 @@
+use super::ScannerResult;
 use crate::types::{Direction, Node, ParseError, ParsingMode, Position, Symbol};
-use std::collections::{HashSet, VecDeque};
+use std::collections::HashSet;
 
 pub fn scan_box(
     input: &[&str],
     symbol: Symbol,
-    to_look_at: &mut VecDeque<Symbol>,
     context: &mut BoxParsingContext,
-) -> Result<Option<Node>, ParseError> {
+) -> Result<ScannerResult, ParseError> {
     if let '┌' | '└' | '┐' | '┘' = symbol.character {
         if context.corners.contains(&symbol.character) {
             return Err(ParseError::UnexpectedSymbol(symbol.position));
@@ -20,73 +20,78 @@ pub fn scan_box(
         _ => (),
     }
 
-    let next_direction = match (symbol.character, symbol.direction.clone()) {
+    let next_direction = match (symbol.character, symbol.direction) {
         ('─', Direction::Left | Direction::Right)
         | ('│', Direction::Up | Direction::Down)
         | ('┤', Direction::Up | Direction::Down)
-        | ('├', Direction::Up | Direction::Down) => symbol.direction.clone(),
-        ('┘', Direction::Down) => Direction::Left,
-        ('┘', Direction::Right) => Direction::Up,
+        | ('├', Direction::Up | Direction::Down) => symbol.direction,
+        ('┘', Direction::Down) => &Direction::Left,
+        ('┘', Direction::Right) => &Direction::Up,
 
-        ('└', Direction::Down) => Direction::Right,
-        ('└', Direction::Left) => Direction::Up,
+        ('└', Direction::Down) => &Direction::Right,
+        ('└', Direction::Left) => &Direction::Up,
 
-        ('┌', Direction::Left) => Direction::Down,
-        ('┌', Direction::Up) => Direction::Right,
+        ('┌', Direction::Left) => &Direction::Down,
+        ('┌', Direction::Up) => &Direction::Right,
 
-        ('┐', Direction::Right) => Direction::Down,
-        ('┐', Direction::Up) => Direction::Left,
+        ('┐', Direction::Right) => &Direction::Down,
+        ('┐', Direction::Up) => &Direction::Left,
         _ => return Err(ParseError::UnexpectedSymbol(symbol.position)),
     };
 
     let next_position = next_direction.move_cursor(symbol.position.clone());
     if next_position == context.starting_position {
-        return Ok(Some(Node::Box {
-            top_left: context.top_left.take().ok_or(ParseError::UnexpectedState {
-                position: symbol.position.clone(),
-                message: "at this point we should always know where the top left corner is",
-            })?,
-            bottom_right: context
-                .bottom_right
-                .take()
-                .ok_or(ParseError::UnexpectedState {
-                    position: symbol.position,
-                    message: "at this point we should always know where the bottom right corner is",
+        return Ok(ScannerResult {
+            node: Some(Node::Box {
+                top_left: context.top_left.take().ok_or(ParseError::UnexpectedState {
+                    position: symbol.position.clone(),
+                    message: "at this point we should always know where the top left corner is",
                 })?,
-        }));
+                bottom_right: context
+                    .bottom_right
+                    .take()
+                    .ok_or(ParseError::UnexpectedState {
+                        position: symbol.position,
+                        message:
+                            "at this point we should always know where the bottom right corner is",
+                    })?,
+            }),
+            parse_now: vec![],
+            parse_later: vec![],
+        });
     }
 
     let next_char = input[next_position.line]
         .chars()
         .nth(next_position.column)
         .ok_or(ParseError::EndOfInput)?;
+    let mut parse_later = vec![];
     match next_char {
         '├' => {
-            to_look_at.push_back(Symbol::new(
+            parse_later.push(Symbol::new(
                 next_position.clone(),
                 '─',
-                Direction::Right,
+                &Direction::Right,
                 ParsingMode::Wire,
             ));
         }
         '┤' => {
-            to_look_at.push_back(Symbol::new(
+            parse_later.push(Symbol::new(
                 next_position.clone(),
                 '─',
-                Direction::Left,
+                &Direction::Left,
                 ParsingMode::Wire,
             ));
         }
         _ => (),
     }
 
-    to_look_at.push_front(Symbol::new(
-        next_position,
-        next_char,
-        next_direction,
-        ParsingMode::Box,
-    ));
-    Ok(None)
+    let next_box_symbol = Symbol::new(next_position, next_char, next_direction, ParsingMode::Box);
+    Ok(ScannerResult {
+        node: None,
+        parse_now: vec![next_box_symbol],
+        parse_later,
+    })
 }
 
 pub struct BoxParsingContext {

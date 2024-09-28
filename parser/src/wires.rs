@@ -1,28 +1,27 @@
+use super::ScannerResult;
 use crate::types::{Direction, Node, ParseError, ParsingMode, Position, Symbol};
-use std::collections::VecDeque;
 
 pub fn scan_for_wire_end(
     input: &[&str],
     symbol: Symbol,
-    to_look_at: &mut VecDeque<Symbol>,
     wire_start: &Position,
-) -> Result<Option<Node>, ParseError> {
-    let next_direction = match (symbol.character, symbol.direction.clone()) {
+) -> Result<ScannerResult, ParseError> {
+    let next_direction: &Direction = match (symbol.character, symbol.direction) {
         ('─', Direction::Left | Direction::Right) | ('│', Direction::Up | Direction::Down) => {
-            symbol.direction.clone()
+            symbol.direction
         }
         ('┼', dir) => dir,
-        ('┘', Direction::Down) => Direction::Left,
-        ('┘', Direction::Right) => Direction::Up,
+        ('┘', Direction::Down) => &Direction::Left,
+        ('┘', Direction::Right) => &Direction::Up,
 
-        ('└', Direction::Down) => Direction::Right,
-        ('└', Direction::Left) => Direction::Up,
+        ('└', Direction::Down) => &Direction::Right,
+        ('└', Direction::Left) => &Direction::Up,
 
-        ('┌', Direction::Left) => Direction::Down,
-        ('┌', Direction::Up) => Direction::Right,
+        ('┌', Direction::Left) => &Direction::Down,
+        ('┌', Direction::Up) => &Direction::Right,
 
-        ('┐', Direction::Right) => Direction::Down,
-        ('┐', Direction::Up) => Direction::Left,
+        ('┐', Direction::Right) => &Direction::Down,
+        ('┐', Direction::Up) => &Direction::Left,
         _ => return Err(ParseError::UnexpectedSymbol(symbol.position)),
     };
 
@@ -31,47 +30,54 @@ pub fn scan_for_wire_end(
 
     Ok(match next_char {
         Some('┬') => {
-            to_look_at.push_front(Symbol::new(
-                next_position.clone(),
-                '─',
-                symbol.direction,
-                ParsingMode::Wire,
-            ));
-            to_look_at.push_front(Symbol::new(
-                next_position.clone(),
-                '│',
-                Direction::Down,
-                ParsingMode::Wire,
-            ));
-            Some(Node::Wire {
-                start: wire_start.clone(),
-                end: next_position,
-            })
+            let parse_next = [
+                ('─', &Direction::Right),
+                ('─', &Direction::Left),
+                ('│', &Direction::Down),
+            ]
+            .iter()
+            .map(|(c, dir)| Symbol::new(next_position.clone(), *c, dir, ParsingMode::Wire))
+            .collect();
+
+            ScannerResult {
+                node: Some(Node::Wire {
+                    start: wire_start.clone(),
+                    end: next_position,
+                }),
+                parse_now: parse_next,
+                parse_later: vec![],
+            }
         }
-        box_pin @ Some('┤' | '├') => {
-            to_look_at.push_front(Symbol::new(
-                next_position.clone(),
+        box_pin @ Some('┤' | '├') => ScannerResult {
+            node: Some(Node::Wire {
+                start: wire_start.clone(),
+                end: next_position.clone(),
+            }),
+            parse_now: vec![Symbol::new(
+                next_position,
                 box_pin.unwrap(),
-                Direction::Up,
+                &Direction::Up,
                 ParsingMode::Box,
-            ));
-            Some(Node::Wire {
+            )],
+            parse_later: vec![],
+        },
+        Some(' ') | None => ScannerResult {
+            node: Some(Node::Wire {
                 start: wire_start.clone(),
-                end: next_position,
-            })
-        }
-        Some(' ') | None => Some(Node::Wire {
-            start: wire_start.clone(),
-            end: symbol.position.clone(),
-        }),
-        Some(character) => {
-            to_look_at.push_front(Symbol::new(
+                end: symbol.position.clone(),
+            }),
+            parse_now: vec![],
+            parse_later: vec![],
+        },
+        Some(character) => ScannerResult {
+            node: None,
+            parse_now: vec![Symbol::new(
                 next_position,
                 character,
                 next_direction,
                 ParsingMode::Wire,
-            ));
-            None
-        }
+            )],
+            parse_later: vec![],
+        },
     })
 }
