@@ -29,7 +29,7 @@ pub enum Node {
     },
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Direction {
     Up,
     Down,

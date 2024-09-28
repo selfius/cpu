@@ -29,13 +29,21 @@ pub fn scan_for_wire_end(
     let next_char = input[next_position.line].chars().nth(next_position.column);
 
     Ok(match next_char {
-        Some('┬') => {
+        split @ Some('┬' | '┴' | '├' | '┤') => {
             let parse_next = [
                 ('─', &Direction::Right),
                 ('─', &Direction::Left),
                 ('│', &Direction::Down),
+                ('│', &Direction::Up),
             ]
             .iter()
+            .filter(|(_, dir)| match split {
+                Some('┬') => *dir != &Direction::Up,
+                Some('┴') => *dir != &Direction::Down,
+                Some('├') => *dir != &Direction::Left,
+                Some('┤') => *dir != &Direction::Right,
+                _ => panic!("this can not be None under any circumstances"),
+            })
             .map(|(c, dir)| Symbol::new(next_position.clone(), *c, dir, ParsingMode::Wire))
             .collect();
 
@@ -48,7 +56,7 @@ pub fn scan_for_wire_end(
                 parse_later: vec![],
             }
         }
-        box_pin @ Some('┤' | '├') => ScannerResult {
+        box_pin @ Some('┨' | '┠') => ScannerResult {
             node: Some(Node::Wire {
                 start: wire_start.clone(),
                 end: next_position.clone(),

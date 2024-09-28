@@ -7,7 +7,7 @@ pub fn scan_box(
     symbol: Symbol,
     context: &mut BoxParsingContext,
 ) -> Result<ScannerResult, ParseError> {
-    if let '┌' | '└' | '┐' | '┘' = symbol.character {
+    if let '┏' | '┗' | '┓' | '┛' = symbol.character {
         if context.corners.contains(&symbol.character) {
             return Err(ParseError::UnexpectedSymbol(symbol.position));
         }
@@ -15,27 +15,27 @@ pub fn scan_box(
     }
 
     match symbol.character {
-        '┌' => context.top_left = Some(symbol.position.clone()),
-        '┘' => context.bottom_right = Some(symbol.position.clone()),
+        '┏' => context.top_left = Some(symbol.position.clone()),
+        '┛' => context.bottom_right = Some(symbol.position.clone()),
         _ => (),
     }
 
     let next_direction = match (symbol.character, symbol.direction) {
-        ('─', Direction::Left | Direction::Right)
-        | ('│', Direction::Up | Direction::Down)
-        | ('┤', Direction::Up | Direction::Down)
-        | ('├', Direction::Up | Direction::Down) => symbol.direction,
-        ('┘', Direction::Down) => &Direction::Left,
-        ('┘', Direction::Right) => &Direction::Up,
+        ('━', Direction::Left | Direction::Right)
+        | ('┃', Direction::Up | Direction::Down)
+        | ('┨', Direction::Up | Direction::Down)
+        | ('┠', Direction::Up | Direction::Down) => symbol.direction,
+        ('┛', Direction::Down) => &Direction::Left,
+        ('┛', Direction::Right) => &Direction::Up,
 
-        ('└', Direction::Down) => &Direction::Right,
-        ('└', Direction::Left) => &Direction::Up,
+        ('┗', Direction::Down) => &Direction::Right,
+        ('┗', Direction::Left) => &Direction::Up,
 
-        ('┌', Direction::Left) => &Direction::Down,
-        ('┌', Direction::Up) => &Direction::Right,
+        ('┏', Direction::Left) => &Direction::Down,
+        ('┏', Direction::Up) => &Direction::Right,
 
-        ('┐', Direction::Right) => &Direction::Down,
-        ('┐', Direction::Up) => &Direction::Left,
+        ('┓', Direction::Right) => &Direction::Down,
+        ('┓', Direction::Up) => &Direction::Left,
         _ => return Err(ParseError::UnexpectedSymbol(symbol.position)),
     };
 
@@ -67,7 +67,7 @@ pub fn scan_box(
         .ok_or(ParseError::EndOfInput)?;
     let mut parse_later = vec![];
     match next_char {
-        '├' => {
+        '┠' => {
             parse_later.push(Symbol::new(
                 next_position.clone(),
                 '─',
@@ -75,7 +75,7 @@ pub fn scan_box(
                 ParsingMode::Wire,
             ));
         }
-        '┤' => {
+        '┨' => {
             parse_later.push(Symbol::new(
                 next_position.clone(),
                 '─',
