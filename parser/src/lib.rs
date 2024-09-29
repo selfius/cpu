@@ -133,6 +133,7 @@ const BOX_SYMBOLS: &str = "━┃┓┏┗┛┠┨";
 #[cfg(test)]
 mod tests {
     use super::*;
+    use assertor::*;
 
     #[test]
     fn aspiration() {
@@ -208,15 +209,11 @@ mod tests {
                ├──┬────┘ │
                └──┴──────┘
     ";
-        match parse(test_circuit) {
-            Ok(components) => {
-                assert!(components.contains(&Node::Box {
-                    top_left: Position::new(1, 17),
-                    bottom_right: Position::new(4, 21)
-                }));
-                assert_eq!(components.len(), 12);
-            }
-            Err(error) => panic!("{:?}", error),
-        }
+        assert_that!(parse(test_circuit).unwrap()).contains(&Node::Box {
+            top_left: Position::new(1, 17),
+            bottom_right: Position::new(4, 21),
+            inputs: vec![Position::new(2, 17)],
+            outputs: vec![Position::new(3, 21), Position::new(2, 21)],
+        });
     }
 }

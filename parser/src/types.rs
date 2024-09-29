@@ -26,6 +26,8 @@ pub enum Node {
     Box {
         top_left: Position,
         bottom_right: Position,
+        inputs: Vec<Position>,
+        outputs: Vec<Position>,
     },
 }
 

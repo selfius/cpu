@@ -14,30 +14,9 @@ pub fn scan_box(
         context.corners.insert(symbol.character);
     }
 
-    match symbol.character {
-        '┏' => context.top_left = Some(symbol.position.clone()),
-        '┛' => context.bottom_right = Some(symbol.position.clone()),
-        _ => (),
-    }
+    update_context(context, &symbol);
 
-    let next_direction = match (symbol.character, symbol.direction) {
-        ('━', Direction::Left | Direction::Right)
-        | ('┃', Direction::Up | Direction::Down)
-        | ('┨', Direction::Up | Direction::Down)
-        | ('┠', Direction::Up | Direction::Down) => symbol.direction,
-        ('┛', Direction::Down) => &Direction::Left,
-        ('┛', Direction::Right) => &Direction::Up,
-
-        ('┗', Direction::Down) => &Direction::Right,
-        ('┗', Direction::Left) => &Direction::Up,
-
-        ('┏', Direction::Left) => &Direction::Down,
-        ('┏', Direction::Up) => &Direction::Right,
-
-        ('┓', Direction::Right) => &Direction::Down,
-        ('┓', Direction::Up) => &Direction::Left,
-        _ => return Err(ParseError::UnexpectedSymbol(symbol.position)),
-    };
+    let next_direction = calculate_next_direction(&symbol)?;
 
     let next_position = next_direction.move_cursor(symbol.position.clone());
     if next_position == context.starting_position {
@@ -51,10 +30,12 @@ pub fn scan_box(
                     .bottom_right
                     .take()
                     .ok_or(ParseError::UnexpectedState {
-                        position: symbol.position,
+                        position: symbol.position.clone(),
                         message:
                             "at this point we should always know where the bottom right corner is",
                     })?,
+                inputs: std::mem::take(&mut context.inputs),
+                outputs: std::mem::take(&mut context.outputs),
             }),
             parse_now: vec![],
             parse_later: vec![],
@@ -94,11 +75,44 @@ pub fn scan_box(
     })
 }
 
+fn update_context(context: &mut BoxParsingContext, symbol: &Symbol) {
+    match symbol.character {
+        '┏' => context.top_left = Some(symbol.position.clone()),
+        '┛' => context.bottom_right = Some(symbol.position.clone()),
+        '┨' => context.inputs.push(symbol.position.clone()),
+        '┠' => context.outputs.push(symbol.position.clone()),
+        _ => (),
+    }
+}
+
+fn calculate_next_direction(symbol: &Symbol) -> Result<&'static Direction, ParseError> {
+    Ok(match (symbol.character, symbol.direction) {
+        ('━', Direction::Left | Direction::Right)
+        | ('┃', Direction::Up | Direction::Down)
+        | ('┨', Direction::Up | Direction::Down)
+        | ('┠', Direction::Up | Direction::Down) => symbol.direction,
+        ('┛', Direction::Down) => &Direction::Left,
+        ('┛', Direction::Right) => &Direction::Up,
+
+        ('┗', Direction::Down) => &Direction::Right,
+        ('┗', Direction::Left) => &Direction::Up,
+
+        ('┏', Direction::Left) => &Direction::Down,
+        ('┏', Direction::Up) => &Direction::Right,
+
+        ('┓', Direction::Right) => &Direction::Down,
+        ('┓', Direction::Up) => &Direction::Left,
+        _ => return Err(ParseError::UnexpectedSymbol(symbol.position.clone())),
+    })
+}
+
 pub struct BoxParsingContext {
     starting_position: Position,
     corners: HashSet<char>,
     top_left: Option<Position>,
     bottom_right: Option<Position>,
+    inputs: Vec<Position>,
+    outputs: Vec<Position>,
 }
 
 impl BoxParsingContext {
@@ -108,6 +122,8 @@ impl BoxParsingContext {
             corners: HashSet::new(),
             top_left: None,
             bottom_right: None,
+            inputs: vec![],
+            outputs: vec![],
         }
     }
 }
