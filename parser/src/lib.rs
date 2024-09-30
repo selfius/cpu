@@ -4,10 +4,11 @@ mod types;
 use types::{Direction, Node, ParseError, ParsingMode, Position, Symbol};
 
 mod wires;
-use wires::scan_for_wire_end;
 
 mod r#box;
-use r#box::{scan_box, BoxParsingContext};
+
+mod structural_scan;
+use structural_scan::structural_scan;
 
 pub fn parse(source: &str) -> Result<Vec<Node>, ParseError> {
     // convert string to alighned 2d array
@@ -26,79 +27,9 @@ pub fn parse(source: &str) -> Result<Vec<Node>, ParseError> {
             ParsingMode::Wire,
         ))
     });
-    scan(&lines, symbols)
-}
-
-fn scan(input: &[&str], mut to_look_at: VecDeque<Symbol>) -> Result<Vec<Node>, ParseError> {
-    let mut components = vec![];
-    let mut debug_num = 0;
-    let mut new_component = true;
-    let mut wire_start = Position::new(0, 0);
-    let mut box_parsing_context = BoxParsingContext::new(&wire_start);
-    let mut positions_visited_vertically = HashSet::new();
-    let mut positions_visited_horizontally = HashSet::new();
-    while let Some(symbol) = to_look_at.pop_front() {
-        if new_component {
-            match symbol.mode {
-                ParsingMode::Wire => {
-                    wire_start = symbol.position.clone();
-                }
-                ParsingMode::Box => {
-                    box_parsing_context = BoxParsingContext::new(&symbol.position);
-                }
-            }
-        }
-
-        new_component = false;
-
-        debug_num += 1;
-        if debug_num > 10000 {
-            println!("{:?} {:?}", to_look_at, symbol);
-            return Err(ParseError::Looping);
-        }
-
-        match symbol.direction {
-            &Direction::Up | &Direction::Down => {
-                positions_visited_vertically.insert(symbol.position.clone())
-            }
-            &Direction::Left | &Direction::Right => {
-                positions_visited_horizontally.insert(symbol.position.clone())
-            }
-        };
-
-        let scanner_result = match symbol.mode {
-            ParsingMode::Wire => scan_for_wire_end(input, symbol, &wire_start),
-            ParsingMode::Box => scan_box(input, symbol, &mut box_parsing_context),
-        }?;
-
-        if let Some(node) = scanner_result.node {
-            components.push(node);
-            new_component = true;
-        }
-
-        for to_front in scanner_result.parse_now {
-            if !(match to_front.direction {
-                &Direction::Up | &Direction::Down => &positions_visited_vertically,
-                &Direction::Left | &Direction::Right => &positions_visited_horizontally,
-            })
-            .contains(&to_front.position)
-            {
-                to_look_at.push_front(to_front);
-            }
-        }
-
-        for to_back in scanner_result.parse_later {
-            if !(match to_back.direction {
-                &Direction::Up | &Direction::Down => &positions_visited_vertically,
-                &Direction::Left | &Direction::Right => &positions_visited_horizontally,
-            })
-            .contains(&to_back.position)
-            {
-                to_look_at.push_back(to_back);
-            }
-        }
-    }
-    Ok(components)
+    let mut nodes = scan_for_text_tokens(&lines);
+    nodes.append(&mut structural_scan(&lines, symbols)?);
+    Ok(nodes)
 }
 
 struct ScannerResult {
@@ -125,6 +56,44 @@ fn find_dangling_inputs(input: &[&str]) -> Vec<Position> {
         }
     }
     dangling_inputs
+}
+
+fn scan_for_text_tokens(input: &[&str]) -> Vec<Node> {
+    let mut nodes = vec![];
+    let mut current_state = TextTokenFSMState::Junk;
+    let mut current_token = String::new();
+    let mut token_start = 0;
+    for (line_num, line) in input.iter().enumerate() {
+       for (char_num, c) in line.chars().chain([' ']).enumerate() {
+           match (c, &current_state) {
+               ('a'..='z' | 'A'..='Z', TextTokenFSMState::Junk) => {
+                    current_state = TextTokenFSMState::Text;
+                    current_token.push(c);
+                    token_start = char_num;
+               }
+               ('a'..='z' | 'A'..='Z' | '0'..='9' | '_', TextTokenFSMState::Text) => {
+                    current_token.push(c);
+               }
+               (_ , TextTokenFSMState::Text) => {
+                    nodes.push(Node::Text{
+                        line: line_num,
+                        position: token_start..char_num,
+                        value: current_token,
+                    });
+                    current_state = TextTokenFSMState::Junk;
+                    current_token = String::new();
+               }
+               _ => {
+               }
+           }
+       }
+    }
+    nodes
+}
+
+enum TextTokenFSMState {
+    Junk,
+    Text,
 }
 
 const WIRE_SYMBOLS: &str = "─│┬┴┘┐┌└┼└┘";
@@ -215,5 +184,49 @@ mod tests {
             inputs: vec![Position::new(2, 17)],
             outputs: vec![Position::new(3, 21), Position::new(2, 21)],
         });
+    }
+
+    #[test]
+    fn finds_text_tokens() {
+        let test_circuit = "
+                 ┏━━━━━━━━━┓
+              ───┨ token1  ┠─
+                 ┃   token2┃
+                 ┗━━━━━━━━━┛
+               tok_en3;4token4
+token5              %$#
+    ";
+        let nodes = parse(test_circuit).unwrap();
+        assert_that!(nodes).contains(&Node::Box {
+            top_left: Position::new(1, 17),
+            bottom_right: Position::new(4, 27),
+            inputs: vec![Position::new(2, 17)],
+            outputs: vec![Position::new(2, 27)],
+        });
+        assert_that!(nodes).contains(&Node::Text {
+            line: 2,
+            position: 19..25,
+            value: String::from("token1"),
+        });
+        assert_that!(nodes).contains(&Node::Text {
+            line: 3,
+            position: 21..27,
+            value: String::from("token2"),
+        });
+        assert_that!(nodes).contains(&Node::Text {
+            line: 5,
+            position: 15..22,
+            value: String::from("tok_en3"),
+        });
+        assert_that!(nodes).contains(&Node::Text {
+            line: 5,
+            position: 24..30,
+            value: String::from("token4"),
+        });
+         assert_that!(nodes).contains(&Node::Text {
+            line: 6,
+            position: 0..6,
+            value: String::from("token5"),
+        });       
     }
 }

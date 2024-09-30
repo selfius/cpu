@@ -1,4 +1,5 @@
 use std::fmt::{Display, Error, Formatter};
+use std::ops::Range;
 
 #[derive(Debug)]
 pub enum ParseError {
@@ -29,6 +30,11 @@ pub enum Node {
         inputs: Vec<Position>,
         outputs: Vec<Position>,
     },
+    Text {
+        line: usize,
+        position: Range<usize>,
+        value: String,
+    }
 }
 
 #[derive(Clone, Debug, PartialEq)]
