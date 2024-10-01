@@ -34,7 +34,13 @@ pub enum Node {
         line: usize,
         position: Range<usize>,
         value: String,
-    }
+    },
+    Input {
+        position: Position,
+    },
+    Output {
+        position: Position,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq)]

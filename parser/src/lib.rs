@@ -15,13 +15,13 @@ pub fn parse(source: &str) -> Result<Vec<Node>, ParseError> {
     let lines: Vec<_> = source.lines().collect();
 
     // find inputs as dangling -.*
-    let dangling_inputs = find_dangling_inputs(&lines);
+    let (dangling_inputs, dangling_outputs) = find_dangling_wires(&lines);
 
     // put them in a stack or a queue and start untangling according to rules
     let mut symbols: VecDeque<Symbol> = VecDeque::new();
-    dangling_inputs.into_iter().for_each(|input| {
+    dangling_inputs.iter().for_each(|input_position| {
         symbols.push_back(Symbol::new(
-            input,
+            input_position.clone(),
             '─',
             &Direction::Right,
             ParsingMode::Wire,
@@ -29,6 +29,18 @@ pub fn parse(source: &str) -> Result<Vec<Node>, ParseError> {
     });
     let mut nodes = scan_for_text_tokens(&lines);
     nodes.append(&mut structural_scan(&lines, symbols)?);
+    nodes.append(
+        &mut dangling_inputs
+            .into_iter()
+            .map(|position| Node::Input { position })
+            .collect(),
+    );
+    nodes.append(
+        &mut dangling_outputs
+            .into_iter()
+            .map(|position| Node::Output { position })
+            .collect(),
+    );
     Ok(nodes)
 }
 
@@ -38,24 +50,29 @@ struct ScannerResult {
     parse_later: Vec<Symbol>,
 }
 
-fn find_dangling_inputs(input: &[&str]) -> Vec<Position> {
+fn find_dangling_wires(input: &[&str]) -> (Vec<Position>, Vec<Position>) {
     let mut dangling_inputs = vec![];
+    let mut dangling_outputs = vec![];
     let struct_symbol_set: HashSet<_> = WIRE_SYMBOLS.chars().chain(BOX_SYMBOLS.chars()).collect();
     for (line_num, line) in input.iter().enumerate() {
         let mut prev_symbol: Option<char> = None;
-        for (col_num, symbol) in line.chars().enumerate() {
-            if symbol == '─'
-                && prev_symbol
-                    .filter(|sym| struct_symbol_set.contains(sym))
-                    .is_none()
-            {
-                //yeild line and column if it's a horizontal wire with nothing to it's left
-                dangling_inputs.push(Position::new(line_num, col_num));
+        for (col_num, symbol) in line.chars().chain([' ']).enumerate() {
+            match (prev_symbol, symbol) {
+                (Some('─'), junk) if !struct_symbol_set.contains(&junk) => {
+                    dangling_outputs.push(Position::new(line_num, col_num - 1));
+                }
+                (Some(junk), '─') if !struct_symbol_set.contains(&junk) => {
+                    dangling_inputs.push(Position::new(line_num, col_num));
+                }
+                (None, '─') => {
+                    dangling_inputs.push(Position::new(line_num, col_num));
+                }
+                _ => (),
             }
             prev_symbol = Some(symbol);
         }
     }
-    dangling_inputs
+    (dangling_inputs, dangling_outputs)
 }
 
 fn scan_for_text_tokens(input: &[&str]) -> Vec<Node> {
@@ -64,29 +81,28 @@ fn scan_for_text_tokens(input: &[&str]) -> Vec<Node> {
     let mut current_token = String::new();
     let mut token_start = 0;
     for (line_num, line) in input.iter().enumerate() {
-       for (char_num, c) in line.chars().chain([' ']).enumerate() {
-           match (c, &current_state) {
-               ('a'..='z' | 'A'..='Z', TextTokenFSMState::Junk) => {
+        for (char_num, c) in line.chars().chain([' ']).enumerate() {
+            match (c, &current_state) {
+                ('a'..='z' | 'A'..='Z', TextTokenFSMState::Junk) => {
                     current_state = TextTokenFSMState::Text;
                     current_token.push(c);
                     token_start = char_num;
-               }
-               ('a'..='z' | 'A'..='Z' | '0'..='9' | '_', TextTokenFSMState::Text) => {
+                }
+                ('a'..='z' | 'A'..='Z' | '0'..='9' | '_', TextTokenFSMState::Text) => {
                     current_token.push(c);
-               }
-               (_ , TextTokenFSMState::Text) => {
-                    nodes.push(Node::Text{
+                }
+                (_, TextTokenFSMState::Text) => {
+                    nodes.push(Node::Text {
                         line: line_num,
                         position: token_start..char_num,
                         value: current_token,
                     });
                     current_state = TextTokenFSMState::Junk;
                     current_token = String::new();
-               }
-               _ => {
-               }
-           }
-       }
+                }
+                _ => {}
+            }
+        }
     }
     nodes
 }
@@ -144,28 +160,59 @@ mod tests {
                ──┼─────┼──  
                  │     └────
     ";
-        match parse(test_circuit) {
-            Ok(wires) => {
-                assert!(wires.contains(&Node::Wire {
-                    start: Position::new(2, 14),
-                    end: Position::new(2, 17)
-                }));
-                assert!(wires.contains(&Node::Wire {
-                    start: Position::new(2, 17),
-                    end: Position::new(5, 17)
-                }));
-                assert!(wires.contains(&Node::Wire {
-                    start: Position::new(2, 17),
-                    end: Position::new(5, 27)
-                }));
-                assert!(wires.contains(&Node::Wire {
-                    start: Position::new(4, 15),
-                    end: Position::new(4, 25)
-                }));
-            }
+        let wires = parse(test_circuit).unwrap();
+        assert_that!(wires
+            .into_iter()
+            .filter(|node| matches!(node, Node::Wire { .. }))
+            .collect::<Vec<_>>())
+        .contains_exactly(vec![
+            Node::Wire {
+                start: Position::new(2, 17),
+                end: Position::new(5, 17),
+            },
+            Node::Wire {
+                start: Position::new(2, 14),
+                end: Position::new(2, 17),
+            },
+            Node::Wire {
+                start: Position::new(2, 17),
+                end: Position::new(5, 27),
+            },
+            Node::Wire {
+                start: Position::new(4, 15),
+                end: Position::new(4, 25),
+            },
+        ]);
+    }
 
-            _ => panic!("unexpected parse error"),
-        }
+    #[test]
+    fn find_inputs_and_outputs() {
+        let test_circuit = "
+                       ┌───┐
+              ───┬──┐  │   │
+                 │  └──┼───┘
+               ──┼─────┼──  
+                 │     └────
+    ";
+        let wires = parse(test_circuit).unwrap();
+        assert_that!(wires
+            .into_iter()
+            .filter(|node| matches!(node, Node::Input { .. } | Node::Output { .. }))
+            .collect::<Vec<_>>())
+        .contains_exactly(vec![
+            Node::Input {
+                position: Position::new(2, 14),
+            },
+            Node::Input {
+                position: Position::new(4, 15),
+            },
+            Node::Output {
+                position: Position::new(4, 25),
+            },
+            Node::Output {
+                position: Position::new(5, 27),
+            },
+        ]);
     }
 
     #[test]
@@ -223,10 +270,10 @@ token5              %$#
             position: 24..30,
             value: String::from("token4"),
         });
-         assert_that!(nodes).contains(&Node::Text {
+        assert_that!(nodes).contains(&Node::Text {
             line: 6,
             position: 0..6,
             value: String::from("token5"),
-        });       
+        });
     }
 }
