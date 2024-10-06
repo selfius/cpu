@@ -1,4 +1,3 @@
-use std::cmp::Eq;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::ops::Range;
 
@@ -6,35 +5,18 @@ mod and;
 mod bit;
 mod byte;
 mod decoder;
-mod digital_component;
 mod enabler;
 mod intersections;
 mod nand;
 mod not;
 mod register;
 
-use digital_component::{ComponentLogic, DigitalComponent};
+use digital_component::{BitState, ComponentId, ComponentLogic, DigitalComponent, Input, Output};
 
 fn main() {
     //just to shut up clippy for the time being
     decoder::decoder("test", 3);
 }
-
-#[derive(Clone, Debug, PartialEq)]
-enum BitState {
-    On,
-    Off,
-    Undefined,
-}
-
-#[derive(Eq, PartialEq, Hash)]
-struct Output(usize);
-
-#[derive(Eq, PartialEq, Hash)]
-struct Input(usize);
-
-#[derive(Eq, PartialEq, Hash, Clone)]
-struct ComponentId(usize);
 
 struct ComponentGraph {
     components: Vec<DigitalComponent>,

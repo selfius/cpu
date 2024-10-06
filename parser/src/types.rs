@@ -10,6 +10,7 @@ pub enum ParseError {
         message: &'static str,
     },
     EndOfInput,
+    InternalStateError,
 }
 
 #[derive(Debug)]
@@ -18,7 +19,7 @@ pub enum ParsingMode {
     Box,
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum Node {
     Wire {
         start: Position,

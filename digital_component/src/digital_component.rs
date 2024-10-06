@@ -1,4 +1,5 @@
-use std::fmt;
+use std::hash::{Hash, Hasher};
+use std::{fmt, ptr};
 
 use crate::BitState;
 
@@ -12,6 +13,20 @@ pub struct DigitalComponent {
     inputs: Vec<BitState>,
     outputs: Vec<BitState>,
     func: Box<ComponentLogic>,
+}
+
+impl PartialEq for DigitalComponent {
+    fn eq(&self, rhs: &Self) -> bool {
+        ptr::addr_eq(self, rhs)
+    }
+}
+
+impl Eq for DigitalComponent {}
+
+impl Hash for DigitalComponent {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        ptr::addr_of!(self).hash(state);
+    }
 }
 
 impl DigitalComponent {

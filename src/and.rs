@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
 use super::composite_component_logic;
-use crate::digital_component::DigitalComponent;
 use crate::nand::Nand;
 use crate::not::not;
 use crate::{BitState, ComponentGraph, ComponentId, Input, Output};
+use digital_component::DigitalComponent;
 
 pub fn make_and(name: &str) -> DigitalComponent {
     let components = vec![Nand::named("nand #1").dc, not("not #1")];

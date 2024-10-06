@@ -1,7 +1,7 @@
 use super::composite_component_logic;
-use crate::digital_component::DigitalComponent;
 use crate::nand::Nand;
 use crate::{BitState, ComponentGraph};
+use digital_component::DigitalComponent;
 
 use std::collections::HashMap;
 

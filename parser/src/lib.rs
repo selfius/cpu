@@ -1,19 +1,32 @@
-use std::collections::{HashSet, VecDeque};
+use std::collections::VecDeque;
 
 mod types;
-use types::{Direction, Node, ParseError, ParsingMode, Position, Symbol};
+use types::{Direction, Node, ParseError, ParsingMode, Symbol};
 
 mod wires;
 
 mod r#box;
 
 mod structural_scan;
-use structural_scan::structural_scan;
+use structural_scan::{find_dangling_wires, structural_scan};
 
-pub fn parse(source: &str) -> Result<Vec<Node>, ParseError> {
+mod node_graph;
+use node_graph::build_node_graph;
+
+use digital_component::Graph;
+
+pub fn parse(source: &str) -> Result<Graph, ParseError> {
+
+    // scan what take break into what would be equivalent of a 2D token
+    let result = scan(source)?;
+
+    // no build an graph where wires from previous stage are edges and the rest is nodes
+    build_node_graph(result)
+}
+
+fn scan(source: &str) -> Result<Vec<Node>, ParseError> {
     // convert string to alighned 2d array
     let lines: Vec<_> = source.lines().collect();
-
     // find inputs as dangling -.*
     let (dangling_inputs, dangling_outputs) = find_dangling_wires(&lines);
 
@@ -42,37 +55,6 @@ pub fn parse(source: &str) -> Result<Vec<Node>, ParseError> {
             .collect(),
     );
     Ok(nodes)
-}
-
-struct ScannerResult {
-    node: Option<Node>,
-    parse_now: Vec<Symbol>,
-    parse_later: Vec<Symbol>,
-}
-
-fn find_dangling_wires(input: &[&str]) -> (Vec<Position>, Vec<Position>) {
-    let mut dangling_inputs = vec![];
-    let mut dangling_outputs = vec![];
-    let struct_symbol_set: HashSet<_> = WIRE_SYMBOLS.chars().chain(BOX_SYMBOLS.chars()).collect();
-    for (line_num, line) in input.iter().enumerate() {
-        let mut prev_symbol: Option<char> = None;
-        for (col_num, symbol) in line.chars().chain([' ']).enumerate() {
-            match (prev_symbol, symbol) {
-                (Some('─'), junk) if !struct_symbol_set.contains(&junk) => {
-                    dangling_outputs.push(Position::new(line_num, col_num - 1));
-                }
-                (Some(junk), '─') if !struct_symbol_set.contains(&junk) => {
-                    dangling_inputs.push(Position::new(line_num, col_num));
-                }
-                (None, '─') => {
-                    dangling_inputs.push(Position::new(line_num, col_num));
-                }
-                _ => (),
-            }
-            prev_symbol = Some(symbol);
-        }
-    }
-    (dangling_inputs, dangling_outputs)
 }
 
 fn scan_for_text_tokens(input: &[&str]) -> Vec<Node> {
@@ -112,15 +94,14 @@ enum TextTokenFSMState {
     Text,
 }
 
-const WIRE_SYMBOLS: &str = "─│┬┴┘┐┌└┼└┘";
-const BOX_SYMBOLS: &str = "━┃┓┏┗┛┠┨";
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use assertor::*;
+    use types::*;
 
     #[test]
+    #[should_panic]
     fn aspiration() {
         let test_circuit = "
                  ┏━━━┓                     
@@ -160,7 +141,7 @@ mod tests {
                ──┼─────┼──  
                  │     └────
     ";
-        let wires = parse(test_circuit).unwrap();
+        let wires = scan(test_circuit).unwrap();
         assert_that!(wires
             .into_iter()
             .filter(|node| matches!(node, Node::Wire { .. }))
@@ -194,7 +175,7 @@ mod tests {
                ──┼─────┼──  
                  │     └────
     ";
-        let wires = parse(test_circuit).unwrap();
+        let wires = scan(test_circuit).unwrap();
         assert_that!(wires
             .into_iter()
             .filter(|node| matches!(node, Node::Input { .. } | Node::Output { .. }))
@@ -225,7 +206,7 @@ mod tests {
                ├──┬────┘ │
                └──┴──────┘
     ";
-        assert_that!(parse(test_circuit).unwrap()).contains(&Node::Box {
+        assert_that!(scan(test_circuit).unwrap()).contains(&Node::Box {
             top_left: Position::new(1, 17),
             bottom_right: Position::new(4, 21),
             inputs: vec![Position::new(2, 17)],
@@ -243,7 +224,7 @@ mod tests {
                tok_en3;4token4
 token5              %$#
     ";
-        let nodes = parse(test_circuit).unwrap();
+        let nodes = scan(test_circuit).unwrap();
         assert_that!(nodes).contains(&Node::Box {
             top_left: Position::new(1, 17),
             bottom_right: Position::new(4, 27),

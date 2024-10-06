@@ -1,6 +1,14 @@
+[workspace]
+members = ["digital_component", "parser"]
+
+[workspace.dependencies]
+assertor = "0.0.3"
+
 [package]
 name = "cpu"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+digital_component = { path = "digital_component" }
+parser = { path = "parser" }

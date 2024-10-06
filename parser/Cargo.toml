@@ -4,4 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-assertor = "0.0.3"
+digital_component = { path = "../digital_component" }
+
+[dev-dependencies]
+assertor = { workspace = true}

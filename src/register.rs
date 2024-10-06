@@ -1,8 +1,8 @@
 use super::composite_component_logic;
 use crate::byte::{Byte, SET_BIT_IDX as BYTE_SET_VALUE_PIN_IDX};
-use crate::digital_component::DigitalComponent;
 use crate::enabler::{Enabler, ENABLE_PIN_IDX as ENABLER_ENABLE_PIN_IDX};
 use crate::{BitState, ComponentGraph, ComponentId, Input, Output};
+use digital_component::DigitalComponent;
 
 pub struct Register {
     pub dc: DigitalComponent,

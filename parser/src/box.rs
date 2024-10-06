@@ -1,4 +1,4 @@
-use super::ScannerResult;
+use crate::structural_scan::ScannerResult;
 use crate::types::{Direction, Node, ParseError, ParsingMode, Position, Symbol};
 use std::collections::HashSet;
 

@@ -79,3 +79,37 @@ pub fn structural_scan(
     }
     Ok(components)
 }
+
+pub fn find_dangling_wires(input: &[&str]) -> (Vec<Position>, Vec<Position>) {
+    let mut dangling_inputs = vec![];
+    let mut dangling_outputs = vec![];
+    let struct_symbol_set: HashSet<_> = WIRE_SYMBOLS.chars().chain(BOX_SYMBOLS.chars()).collect();
+    for (line_num, line) in input.iter().enumerate() {
+        let mut prev_symbol: Option<char> = None;
+        for (col_num, symbol) in line.chars().chain([' ']).enumerate() {
+            match (prev_symbol, symbol) {
+                (Some('─'), junk) if !struct_symbol_set.contains(&junk) => {
+                    dangling_outputs.push(Position::new(line_num, col_num - 1));
+                }
+                (Some(junk), '─') if !struct_symbol_set.contains(&junk) => {
+                    dangling_inputs.push(Position::new(line_num, col_num));
+                }
+                (None, '─') => {
+                    dangling_inputs.push(Position::new(line_num, col_num));
+                }
+                _ => (),
+            }
+            prev_symbol = Some(symbol);
+        }
+    }
+    (dangling_inputs, dangling_outputs)
+}
+
+const WIRE_SYMBOLS: &str = "─│┬┴┘┐┌└┼└┘";
+const BOX_SYMBOLS: &str = "━┃┓┏┗┛┠┨";
+
+pub struct ScannerResult {
+    pub node: Option<Node>,
+    pub parse_now: Vec<Symbol>,
+    pub parse_later: Vec<Symbol>,
+}

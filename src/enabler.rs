@@ -2,8 +2,8 @@ use std::collections::HashMap;
 
 use super::composite_component_logic;
 use crate::and::make_and;
-use crate::digital_component::DigitalComponent;
 use crate::{BitState, ComponentGraph};
+use digital_component::DigitalComponent;
 
 pub struct Enabler {
     pub dc: DigitalComponent,
