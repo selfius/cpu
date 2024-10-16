@@ -28,6 +28,9 @@ dependencies = [
 [[package]]
 name = "digital_component"
 version = "0.1.0"
+dependencies = [
+ "assertor",
+]
 
 [[package]]
 name = "num-traits"

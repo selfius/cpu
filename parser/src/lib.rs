@@ -16,7 +16,6 @@ use node_graph::build_node_graph;
 use digital_component::Graph;
 
 pub fn parse(source: &str) -> Result<Graph, ParseError> {
-
     // scan what take break into what would be equivalent of a 2D token
     let result = scan(source)?;
 
@@ -101,35 +100,57 @@ mod tests {
     use types::*;
 
     #[test]
-    #[should_panic]
     fn aspiration() {
         let test_circuit = "
                  ┏━━━┓                     
-              ─┬─┨   ┠─────┐               
+              ─┬─┨not┠─────┐               
                │ ┗━━━┛     │               
                │   ┏━━━┓   │               
-              ─┼─┬─┨   ┠───┼─┐             
+              ─┼─┬─┨not┠───┼─┐             
                │ │ ┗━━━┛   │ │             
                │ │   ┏━━━┓ │ │             
-              ─┼─┼─┬─┨   ┠─┼─┼─┐           
+              ─┼─┼─┬─┨not┠─┼─┼─┐           
                │ │ │ ┗━━━┛ │ │ │ ┏━━━━━┓   
-               │ │ │       ├─┼─┼─┨     ┃   
-               │ │ │       │ ├─┼─┨     ┠─  
+               │ │ │       ├─┼─┼─┨ and ┃   
+               │ │ │       │ ├─┼─┨ rem ┠─  
                │ │ │       │ │ └─┨     ┃   
                │ │ │       │ │   ┗━━━━━┛   
                │ │ │       │ │   ┏━━━━━┓   
-               │ │ │       └─┼───┨     ┃   
+               │ │ │       └─┼───┨ and ┃   
                │ │ │         └───┨     ┠─  
                │ │ ├─────────────┨     ┃   
                │ │ │             ┗━━━━━┛   
                │ │ │             ┏━━━━━┓   
-               └─┼─┼─────────────┨     ┃   
-                 └─┼─────────────┨     ┠─  
+               └─┼─┼─────────────┨ and ┃   
+                 └─┼─────────────┨ last┠─  
                    └─────────────┨     ┃   
                                  ┗━━━━━┛   
     ";
 
-        let _ = parse(test_circuit);
+        let graph = parse(test_circuit).unwrap();
+        assert_eq!(
+            format!("{graph:?}"),
+            "\
+            0 component_input(0) -> [ ]\n\
+            1 component_output(0) -> [ ]\n\
+            2 component_input(0) -> [ ]\n\
+            3 component_output(0) -> [ ]\n\
+            4 component_input(0) -> [ ]\n\
+            5 component_output(0) -> [ ]\n\
+            6 component_input(0) -> [ ]\n\
+            7 component_input(1) -> [ ]\n\
+            8 component_input(2) -> [ ]\n\
+            9 component_output(0) -> [ ]\n\
+            10 component_input(0) -> [ ]\n\
+            11 component_input(1) -> [ ]\n\
+            12 component_input(2) -> [ ]\n\
+            13 component_output(0) -> [ ]\n\
+            14 component_input(0) -> [ ]\n\
+            15 component_input(1) -> [ ]\n\
+            16 component_input(2) -> [ ]\n\
+            17 component_output(0) -> [ ]\n\
+            "
+        );
     }
 
     #[test]

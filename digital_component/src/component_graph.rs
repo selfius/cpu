@@ -21,6 +21,21 @@ pub enum NodeKind {
     Joint,
 }
 
+impl Debug for NodeKind {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        f.write_fmt(format_args!(
+            "{}",
+            match self {
+                NodeKind::ComponentInput { input, .. } => format!("component_input({})", input),
+                NodeKind::ComponentOutput { output, .. } => format!("component_output({})", output),
+                NodeKind::Input(idx) => format!("input({})", idx),
+                NodeKind::Output(idx) => format!("output({})", idx),
+                NodeKind::Joint => "joint".to_string(),
+            }
+        ))
+    }
+}
+
 pub struct GraphNode {
     idx: usize,
     kind: NodeKind,
@@ -38,9 +53,19 @@ pub struct GraphNodeRef {
     node: Rc<RefCell<GraphNode>>,
 }
 
+impl Debug for GraphNodeRef {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        f.write_fmt(format_args!(
+            "{:?}_{:?}",
+            self.node.borrow().kind,
+            ptr::addr_of!(self.node)
+        ))
+    }
+}
+
 impl PartialEq for GraphNodeRef {
     fn eq(&self, rhs: &Self) -> bool {
-        ptr::addr_eq(self, rhs)
+        ptr::addr_eq(&*self.node, &*rhs.node)
     }
 }
 
@@ -82,14 +107,26 @@ impl Graph {
         self.adjacency.push(node.clone());
         node
     }
+
+    pub fn nodes(&self) -> Vec<GraphNodeRef> {
+        self.adjacency.to_vec()
+    }
 }
 
 impl Debug for Graph {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         for GraphNodeRef { node: node_ref } in self.adjacency.iter() {
-            f.write_fmt(format_args!("{:?} -> [ ", node_ref.borrow().idx,))?;
+            f.write_fmt(format_args!(
+                "{:?} {:?} -> [ ",
+                node_ref.borrow().idx,
+                node_ref.borrow().kind
+            ))?;
             for GraphNodeRef { node: neighbour } in &node_ref.borrow().neighbours {
-                f.write_fmt(format_args!("{:?} ", neighbour.borrow().idx,))?;
+                f.write_fmt(format_args!(
+                    "{:?} {:?} ",
+                    neighbour.borrow().idx,
+                    neighbour.borrow().kind
+                ))?;
             }
             f.write_str("]\n")?;
         }
@@ -126,10 +163,10 @@ mod tests {
 
         assert_eq!(
             format!("{graph:?}"),
-            "0 -> [ 1 ]\n\
-             1 -> [ ]\n\
-             2 -> [ ]\n\
-             3 -> [ 1 ]\n\
+            "0 component_input(0) -> [ 1 joint ]\n\
+             1 joint -> [ ]\n\
+             2 joint -> [ ]\n\
+             3 joint -> [ 1 joint ]\n\
              "
         );
     }
