@@ -105,7 +105,7 @@ pub fn find_dangling_wires(input: &[&str]) -> (Vec<Position>, Vec<Position>) {
     (dangling_inputs, dangling_outputs)
 }
 
-const WIRE_SYMBOLS: &str = "─│┬┴┘┐┌└┼└┘";
+const WIRE_SYMBOLS: &str = "─│┬┴┘┐┌└┼└┘├┤";
 const BOX_SYMBOLS: &str = "━┃┓┏┗┛┠┨";
 
 pub struct ScannerResult {

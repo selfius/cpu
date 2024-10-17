@@ -128,6 +128,7 @@ mod tests {
     ";
 
         let graph = parse(test_circuit).unwrap();
+
         assert_eq!(
             format!("{graph:?}"),
             "\
@@ -149,6 +150,12 @@ mod tests {
             15 component_input(1) -> [ ]\n\
             16 component_input(2) -> [ ]\n\
             17 component_output(0) -> [ ]\n\
+            18 input(0) -> [ ]\n\
+            19 input(1) -> [ ]\n\
+            20 input(2) -> [ ]\n\
+            21 output(0) -> [ ]\n\
+            22 output(1) -> [ ]\n\
+            23 output(2) -> [ ]\n\
             "
         );
     }
