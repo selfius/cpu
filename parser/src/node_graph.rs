@@ -43,7 +43,7 @@ pub fn build_node_graph(mut nodes: Vec<Node>) -> Result<Graph, ParseError> {
 
     insert_inputs_outputs_into_graph(&mut graph, &nodes, &mut position_to_node);
 
-    // TODO find joints and put them into the graph and the map as well
+    insert_joints_into_graph(&mut graph, &nodes, &mut position_to_node)?;
     // TODO go through wires and treat them as connections
 
     println!("{:?}", graph);
@@ -104,4 +104,44 @@ fn insert_inputs_outputs_into_graph<'a>(
             _ => {}
         };
     }
+}
+
+fn insert_joints_into_graph<'a>(
+    graph: &mut Graph,
+    nodes: &'a [Node],
+    position_to_node: &mut HashMap<&'a Position, GraphNodeRef>,
+) -> Result<(), ParseError> {
+    let mut wire_joints: HashMap<&Position, u32> = HashMap::default();
+
+    let wire_ends: Vec<&Position> = nodes
+        .iter()
+        .flat_map(|node| -> Vec<&Position> {
+            if let Node::Wire { start, end } = node {
+                return vec![&start, &end];
+            }
+            vec![]
+        })
+        .collect();
+
+    for wire_end in &wire_ends {
+        wire_joints.insert(
+            wire_end,
+            wire_joints
+                .get(wire_end)
+                .map(|count| count + 1_u32)
+                .unwrap_or(1),
+        );
+    }
+
+    for wire_end in wire_ends {
+        let n_wires_intersect = wire_joints.get(wire_end).unwrap();
+        if *n_wires_intersect == 1 && position_to_node.get(wire_end).is_none() {
+            return Err(ParseError::LooseWire {
+                position: wire_end.clone(),
+            });
+        } else if *n_wires_intersect > 1 && !position_to_node.contains_key(wire_end) {
+            position_to_node.insert(wire_end, graph.add_node(NodeKind::Joint));
+        }
+    }
+    Ok(())
 }

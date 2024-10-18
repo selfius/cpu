@@ -10,6 +10,9 @@ pub enum ParseError {
         position: Position,
         message: &'static str,
     },
+    LooseWire {
+        position: Position,
+    },
     EndOfInput,
     InternalStateError,
 }

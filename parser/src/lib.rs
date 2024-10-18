@@ -156,6 +156,12 @@ mod tests {
             21 output(0) -> [ ]\n\
             22 output(1) -> [ ]\n\
             23 output(2) -> [ ]\n\
+            24 joint -> [ ]\n\
+            25 joint -> [ ]\n\
+            26 joint -> [ ]\n\
+            27 joint -> [ ]\n\
+            28 joint -> [ ]\n\
+            29 joint -> [ ]\n\
             "
         );
     }
