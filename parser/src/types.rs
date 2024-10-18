@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::fmt::{Display, Error, Formatter};
 use std::ops::Range;
 
-#[derive(Debug)]
+#[derive(Debug,PartialEq)]
 pub enum ParseError {
     UnexpectedSymbol(Position),
     Looping,

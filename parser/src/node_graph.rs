@@ -145,3 +145,96 @@ fn insert_joints_into_graph<'a>(
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::parse;
+    use crate::types::*;
+
+    #[test]
+    fn complete_graph() {
+        let test_circuit = "
+                 ┏━━━┓                     
+              ─┬─┨not┠─────┐               
+               │ ┗━━━┛     │               
+               │   ┏━━━┓   │               
+              ─┼─┬─┨not┠───┼─┐             
+               │ │ ┗━━━┛   │ │             
+               │ │   ┏━━━┓ │ │             
+              ─┼─┼─┬─┨not┠─┼─┼─┐           
+               │ │ │ ┗━━━┛ │ │ │ ┏━━━━━┓   
+               │ │ │       ├─┼─┼─┨ and ┃   
+               │ │ │       │ ├─┼─┨ rem ┠─  
+               │ │ │       │ │ └─┨     ┃   
+               │ │ │       │ │   ┗━━━━━┛   
+               │ │ │       │ │   ┏━━━━━┓   
+               │ │ │       └─┼───┨ and ┃   
+               │ │ │         └───┨     ┠─  
+               │ │ ├─────────────┨     ┃   
+               │ │ │             ┗━━━━━┛   
+               │ │ │             ┏━━━━━┓   
+               └─┼─┼─────────────┨ and ┃   
+                 └─┼─────────────┨ last┠─  
+                   └─────────────┨     ┃   
+                                 ┗━━━━━┛   
+    ";
+
+        let graph = parse(test_circuit).unwrap();
+
+        assert_eq!(
+            format!("{graph:?}"),
+            "\
+            0 component_input(0) -> [ ]\n\
+            1 component_output(0) -> [ ]\n\
+            2 component_input(0) -> [ ]\n\
+            3 component_output(0) -> [ ]\n\
+            4 component_input(0) -> [ ]\n\
+            5 component_output(0) -> [ ]\n\
+            6 component_input(0) -> [ ]\n\
+            7 component_input(1) -> [ ]\n\
+            8 component_input(2) -> [ ]\n\
+            9 component_output(0) -> [ ]\n\
+            10 component_input(0) -> [ ]\n\
+            11 component_input(1) -> [ ]\n\
+            12 component_input(2) -> [ ]\n\
+            13 component_output(0) -> [ ]\n\
+            14 component_input(0) -> [ ]\n\
+            15 component_input(1) -> [ ]\n\
+            16 component_input(2) -> [ ]\n\
+            17 component_output(0) -> [ ]\n\
+            18 input(0) -> [ ]\n\
+            19 input(1) -> [ ]\n\
+            20 input(2) -> [ ]\n\
+            21 output(0) -> [ ]\n\
+            22 output(1) -> [ ]\n\
+            23 output(2) -> [ ]\n\
+            24 joint -> [ ]\n\
+            25 joint -> [ ]\n\
+            26 joint -> [ ]\n\
+            27 joint -> [ ]\n\
+            28 joint -> [ ]\n\
+            29 joint -> [ ]\n\
+            "
+        );
+    }
+
+    #[test]
+    fn detects_loose_wiring() {
+        let test_circuit = "
+              ───┬──┐   
+                 │  └──┐
+               ──┼─────┼──
+                 │     └────
+    ";
+        let error = parse(test_circuit).unwrap_err();
+        assert_eq!(
+            error,
+            ParseError::LooseWire {
+                position: Position {
+                    line: 4,
+                    column: 17
+                },
+            },
+        );
+    }
+}
