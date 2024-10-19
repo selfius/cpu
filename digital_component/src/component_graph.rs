@@ -86,7 +86,7 @@ pub struct Graph {
 impl Graph {
     pub fn add_edge(&mut self, a: &mut GraphNodeRef, b: &mut GraphNodeRef) {
         a.node.borrow_mut().neighbours.insert(b.clone());
-        //b.node.borrow_mut().neighbours.insert(a.clone());
+        b.node.borrow_mut().neighbours.insert(a.clone());
     }
 
     pub fn add_node(&mut self, node_kind: NodeKind) -> GraphNodeRef {
@@ -117,17 +117,25 @@ impl Debug for Graph {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         for GraphNodeRef { node: node_ref } in self.adjacency.iter() {
             f.write_fmt(format_args!(
-                "{:?} {:?} -> [ ",
+                "{:?}_{:?} -> [ ",
                 node_ref.borrow().idx,
                 node_ref.borrow().kind
             ))?;
-            for GraphNodeRef { node: neighbour } in &node_ref.borrow().neighbours {
-                f.write_fmt(format_args!(
-                    "{:?} {:?} ",
-                    neighbour.borrow().idx,
-                    neighbour.borrow().kind
-                ))?;
-            }
+
+            let neighbours = &mut node_ref
+                .borrow()
+                .neighbours
+                .iter()
+                .map(|neighbour| {
+                    format!(
+                        "{:?}_{:?}",
+                        neighbour.node.borrow().idx,
+                        neighbour.node.borrow().kind
+                    )
+                })
+                .collect::<Vec<_>>();
+            neighbours.sort();
+            f.write_str(&neighbours.join(", "))?;
             f.write_str("]\n")?;
         }
         Ok(())
@@ -161,13 +169,16 @@ mod tests {
         graph.add_edge(&mut a_node, &mut b_node);
         graph.add_edge(&mut d_node, &mut b_node);
 
+        println!("{graph:?}");
+
         assert_eq!(
             format!("{graph:?}"),
-            "0 component_input(0) -> [ 1 joint ]\n\
-             1 joint -> [ ]\n\
-             2 joint -> [ ]\n\
-             3 joint -> [ 1 joint ]\n\
-             "
+            "\
+            0_component_input(0) -> [ 1_joint]\n\
+            1_joint -> [ 0_component_input(0), 3_joint]\n\
+            2_joint -> [ ]\n\
+            3_joint -> [ 1_joint]\n\
+            "
         );
     }
 }

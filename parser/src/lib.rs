@@ -177,7 +177,7 @@ mod tests {
             top_left: Position::new(1, 17),
             bottom_right: Position::new(4, 21),
             inputs: vec![Position::new(2, 17)],
-            outputs: vec![Position::new(3, 21), Position::new(2, 21)],
+            outputs: vec![Position::new(2, 21), Position::new(3, 21)],
         });
     }
 

@@ -6,12 +6,18 @@ pub fn scan_box(
     input: &[&str],
     symbol: Symbol,
     context: &mut BoxParsingContext,
+    visited: &mut HashSet<Position>,
 ) -> Result<ScannerResult, ParseError> {
+    if visited.contains(&symbol.position) {
+        return Ok(ScannerResult::default());
+    }
+
     if let '┏' | '┗' | '┓' | '┛' = symbol.character {
         if context.corners.contains(&symbol.character) {
             return Err(ParseError::UnexpectedSymbol(symbol.position));
         }
         context.corners.insert(symbol.character);
+        visited.insert(symbol.position.clone());
     }
 
     update_context(context, &symbol);
@@ -20,6 +26,8 @@ pub fn scan_box(
 
     let next_position = next_direction.move_cursor(symbol.position.clone());
     if next_position == context.starting_position {
+        context.inputs.sort();
+        context.outputs.sort();
         return Ok(ScannerResult {
             node: Some(Node::Box {
                 top_left: context.top_left.take().ok_or(ParseError::UnexpectedState {

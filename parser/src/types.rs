@@ -2,7 +2,7 @@ use std::cmp::Ordering;
 use std::fmt::{Display, Error, Formatter};
 use std::ops::Range;
 
-#[derive(Debug,PartialEq)]
+#[derive(Debug, PartialEq)]
 pub enum ParseError {
     UnexpectedSymbol(Position),
     Looping,
@@ -60,11 +60,12 @@ impl Node {
 }
 
 #[derive(Clone, Debug, PartialEq)]
+#[repr(u8)]
 pub enum Direction {
-    Up,
-    Down,
-    Left,
-    Right,
+    Up = 1,
+    Down = 2,
+    Left = 4,
+    Right = 8,
 }
 
 impl Direction {
@@ -74,6 +75,15 @@ impl Direction {
             Direction::Down => Position::new(line + 1, column),
             Direction::Right => Position::new(line, column + 1),
             Direction::Left => Position::new(line, column - 1),
+        }
+    }
+
+    pub fn opposite(&self) -> Direction {
+        match self {
+            Direction::Up => Direction::Down,
+            Direction::Down => Direction::Up,
+            Direction::Right => Direction::Left,
+            Direction::Left => Direction::Right,
         }
     }
 }

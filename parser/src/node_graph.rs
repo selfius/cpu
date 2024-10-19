@@ -44,7 +44,8 @@ pub fn build_node_graph(mut nodes: Vec<Node>) -> Result<Graph, ParseError> {
     insert_inputs_outputs_into_graph(&mut graph, &nodes, &mut position_to_node);
 
     insert_joints_into_graph(&mut graph, &nodes, &mut position_to_node)?;
-    // TODO go through wires and treat them as connections
+
+    add_edges(&mut graph, &nodes, &mut position_to_node);
 
     println!("{:?}", graph);
     Ok(graph)
@@ -128,7 +129,7 @@ fn insert_joints_into_graph<'a>(
             wire_end,
             wire_joints
                 .get(wire_end)
-                .map(|count| count + 1_u32)
+                .map(|count| count + 1)
                 .unwrap_or(1),
         );
     }
@@ -144,6 +145,20 @@ fn insert_joints_into_graph<'a>(
         }
     }
     Ok(())
+}
+
+fn add_edges<'a>(
+    graph: &mut Graph,
+    nodes: &'a [Node],
+    position_to_node: &mut HashMap<&'a Position, GraphNodeRef>,
+) {
+    for node in nodes {
+        if let Node::Wire { start, end } = node {
+            let mut a = position_to_node.get_mut(start).unwrap().clone();
+            let mut b = position_to_node.get_mut(end).unwrap().clone();
+            graph.add_edge(&mut a, &mut b);
+        }
+    }
 }
 
 #[cfg(test)]
@@ -181,39 +196,63 @@ mod tests {
 
         let graph = parse(test_circuit).unwrap();
 
+        //       ┏━━━┓
+        //  18─24┨0 1┠─────┐
+        //     │ ┗━━━┛     │
+        //     │   ┏━━━┓   │
+        //  19─┼─26┨2 3┠───┼─┐
+        //     │ │ ┗━━━┛   │ │
+        //     │ │   ┏━━━┓ │ │
+        //  20─┼─┼─28┨4 5┠─┼─┼─┐
+        //     │ │ │ ┗━━━┛ │ │ │ ┏━━━━━┓
+        //     │ │ │       25┼─┼─┨6    ┃
+        //     │ │ │       │ 27┼─┨7   9┠─21
+        //     │ │ │       │ │ └─┨8    ┃
+        //     │ │ │       │ │   ┗━━━━━┛
+        //     │ │ │       │ │   ┏━━━━━┓
+        //     │ │ │       └─┼───┨10   ┃
+        //     │ │ │         └───┨11 13┠─22
+        //     │ │ 29────────────┨12   ┃
+        //     │ │ │             ┗━━━━━┛
+        //     │ │ │             ┏━━━━━┓
+        //     └─┼─┼─────────────┨14   ┃
+        //       └─┼─────────────┨15 17┠─23
+        //         └─────────────┨16   ┃
+        //                       ┗━━━━━┛
+
         assert_eq!(
             format!("{graph:?}"),
             "\
-            0 component_input(0) -> [ ]\n\
-            1 component_output(0) -> [ ]\n\
-            2 component_input(0) -> [ ]\n\
-            3 component_output(0) -> [ ]\n\
-            4 component_input(0) -> [ ]\n\
-            5 component_output(0) -> [ ]\n\
-            6 component_input(0) -> [ ]\n\
-            7 component_input(1) -> [ ]\n\
-            8 component_input(2) -> [ ]\n\
-            9 component_output(0) -> [ ]\n\
-            10 component_input(0) -> [ ]\n\
-            11 component_input(1) -> [ ]\n\
-            12 component_input(2) -> [ ]\n\
-            13 component_output(0) -> [ ]\n\
-            14 component_input(0) -> [ ]\n\
-            15 component_input(1) -> [ ]\n\
-            16 component_input(2) -> [ ]\n\
-            17 component_output(0) -> [ ]\n\
-            18 input(0) -> [ ]\n\
-            19 input(1) -> [ ]\n\
-            20 input(2) -> [ ]\n\
-            21 output(0) -> [ ]\n\
-            22 output(1) -> [ ]\n\
-            23 output(2) -> [ ]\n\
-            24 joint -> [ ]\n\
-            25 joint -> [ ]\n\
-            26 joint -> [ ]\n\
-            27 joint -> [ ]\n\
-            28 joint -> [ ]\n\
-            29 joint -> [ ]\n\
+            0_component_input(0) -> [ 24_joint]\n\
+            1_component_output(0) -> [ 25_joint]\n\
+            2_component_input(0) -> [ 26_joint]\n\
+            3_component_output(0) -> [ 27_joint]\n\
+            4_component_input(0) -> [ 28_joint]\n\
+            5_component_output(0) -> [ 8_component_input(2)]\n\
+            6_component_input(0) -> [ 25_joint]\n\
+            7_component_input(1) -> [ 27_joint]\n\
+            8_component_input(2) -> [ 5_component_output(0)]\n\
+            9_component_output(0) -> [ 21_output(0)]\n\
+            10_component_input(0) -> [ 25_joint]\n\
+            11_component_input(1) -> [ 27_joint]\n\
+            12_component_input(2) -> [ 29_joint]\n\
+            13_component_output(0) -> [ 22_output(1)]\n\
+            14_component_input(0) -> [ 24_joint]\n\
+            15_component_input(1) -> [ 26_joint]\n\
+            16_component_input(2) -> [ 29_joint]\n\
+            17_component_output(0) -> [ 23_output(2)]\n\
+            18_input(0) -> [ 24_joint]\n\
+            19_input(1) -> [ 26_joint]\n\
+            20_input(2) -> [ 28_joint]\n\
+            21_output(0) -> [ 9_component_output(0)]\n\
+            22_output(1) -> [ 13_component_output(0)]\n\
+            23_output(2) -> [ 17_component_output(0)]\n\
+            24_joint -> [ 0_component_input(0), 14_component_input(0), 18_input(0)]\n\
+            25_joint -> [ 10_component_input(0), 1_component_output(0), 6_component_input(0)]\n\
+            26_joint -> [ 15_component_input(1), 19_input(1), 2_component_input(0)]\n\
+            27_joint -> [ 11_component_input(1), 3_component_output(0), 7_component_input(1)]\n\
+            28_joint -> [ 20_input(2), 29_joint, 4_component_input(0)]\n\
+            29_joint -> [ 12_component_input(2), 16_component_input(2), 28_joint]\n\
             "
         );
     }
