@@ -99,3 +99,33 @@ impl ScannerResult {
         self.node.is_none() && self.parse_now.is_empty() && self.parse_later.is_empty()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::scan;
+    use crate::types::*;
+    use assertor::*;
+
+    #[test]
+    fn finds_boxes() {
+        let test_circuit = "
+                 ┏━━━┓
+              ─┬─┨   ┠─┬──
+               ├─┨   ┠─┼─┐ 
+               │ ┗━━━┛ │ │
+               ├──┬────┘ │
+               └──┴──────┘
+    ";
+        assert_that!(scan(test_circuit)
+            .unwrap()
+            .into_iter()
+            .filter(|node| matches!(node, Node::Box { .. }))
+            .collect::<Vec<_>>())
+        .contains_exactly(vec![Node::Box {
+            top_left: Position::new(1, 17),
+            bottom_right: Position::new(4, 21),
+            inputs: vec![Position::new(2, 17), Position::new(3, 17)],
+            outputs: vec![Position::new(2, 21), Position::new(3, 21)],
+        }]);
+    }
+}

@@ -130,24 +130,6 @@ mod tests {
     }
 
     #[test]
-    fn finds_boxes() {
-        let test_circuit = "
-                 ┏━━━┓
-              ─┬─┨   ┠─┬──
-               │ ┃   ┠─┼─┐ 
-               │ ┗━━━┛ │ │
-               ├──┬────┘ │
-               └──┴──────┘
-    ";
-        assert_that!(scan(test_circuit).unwrap()).contains(&Node::Box {
-            top_left: Position::new(1, 17),
-            bottom_right: Position::new(4, 21),
-            inputs: vec![Position::new(2, 17)],
-            outputs: vec![Position::new(2, 21), Position::new(3, 21)],
-        });
-    }
-
-    #[test]
     fn finds_text_tokens() {
         let test_circuit = "
                  ┏━━━━━━━━━┓
