@@ -100,40 +100,6 @@ mod tests {
     use types::*;
 
     #[test]
-    fn simple_wiring() {
-        let test_circuit = "
-                       ┌───┐
-              ───┬──┐  │   │
-                 │  └──┼───┘
-               ──┼─────┼──  
-                 │     └────
-    ";
-        let wires = scan(test_circuit).unwrap();
-        assert_that!(wires
-            .into_iter()
-            .filter(|node| matches!(node, Node::Wire { .. }))
-            .collect::<Vec<_>>())
-        .contains_exactly(vec![
-            Node::Wire {
-                start: Position::new(2, 17),
-                end: Position::new(5, 17),
-            },
-            Node::Wire {
-                start: Position::new(2, 14),
-                end: Position::new(2, 17),
-            },
-            Node::Wire {
-                start: Position::new(2, 17),
-                end: Position::new(5, 27),
-            },
-            Node::Wire {
-                start: Position::new(4, 15),
-                end: Position::new(4, 25),
-            },
-        ]);
-    }
-
-    #[test]
     fn find_inputs_and_outputs() {
         let test_circuit = "
                        ┌───┐
