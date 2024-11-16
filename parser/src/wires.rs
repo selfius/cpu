@@ -123,12 +123,11 @@ fn follow_wire(
     })
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::scan;
-    use assertor::*;
     use crate::types::*;
+    use assertor::*;
 
     #[test]
     fn simple_wiring() {
@@ -164,7 +163,7 @@ mod tests {
         ]);
     }
 
-#[test]
+    #[test]
     fn handle_wire_loops() {
         let test_circuit = "
                        ┌───┐

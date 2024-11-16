@@ -1,35 +1,22 @@
 use crate::{BitState, DigitalComponent};
 
-pub struct Nand {
-    pub dc: DigitalComponent,
+pub fn new<'a>() -> DigitalComponent<'a> {
+    named("")
 }
 
-impl Nand {
-    pub fn new() -> Nand {
-        Nand::named("")
-    }
-
-    pub fn named(name: &str) -> Nand {
-        Nand {
-            dc: DigitalComponent::named(2, 1, Box::new(nand), name),
-        }
-    }
-
-    pub fn dc(self) -> DigitalComponent {
-        self.dc
-    }
+pub fn named<'a>(name: &str) -> DigitalComponent<'a> {
+    DigitalComponent::named(2, 1, &nand, name)
 }
 
-fn nand(input: &Vec<BitState>, output: &mut Vec<BitState>) -> bool {
+fn nand(input: &[BitState]) -> Vec<BitState> {
     assert!(input.len() == 2, "NAND gate must have exactly two inputs");
-    assert!(output.len() == 1, "NAND gate must have exactly one ouput");
-    let previous_value = output[0].clone();
+    let mut output = vec![BitState::Undefined];
     output[0] = match (&input[0], &input[1]) {
         (BitState::On, BitState::On) => BitState::Off,
         (BitState::Undefined, BitState::Undefined) => BitState::Undefined,
         _ => BitState::On,
     };
-    previous_value != output[0]
+    output
 }
 
 #[cfg(test)]
@@ -39,16 +26,16 @@ mod tests {
 
     #[test]
     fn nand_gate() {
-        let mut nand_component = DigitalComponent::new(2, 1, Box::new(nand));
+        let mut nand_component = DigitalComponent::new(2, 1, &nand);
         assert_eq!(nand_component.get_output(0), &BitState::Undefined);
 
         nand_component.set_input(0, &BitState::On);
         nand_component.set_input(1, &BitState::Off);
-        assert_eq!(nand_component.resolve(), true);
+        assert!(nand_component.resolve());
         assert_eq!(nand_component.get_output(0), &BitState::On);
 
         nand_component.set_input(1, &BitState::On);
-        assert_eq!(nand_component.resolve(), true);
+        assert!(nand_component.resolve());
         assert_eq!(nand_component.get_output(0), &BitState::Off);
     }
 }

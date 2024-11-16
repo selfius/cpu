@@ -6,40 +6,44 @@ use crate::BitState;
 /// Maps vector of input to vector of outputs
 ///
 /// Return [`true`] if output values changed
-pub type ComponentLogic = dyn FnMut(&Vec<BitState>, &mut Vec<BitState>) -> bool;
+pub type ComponentLogic = dyn Fn(&[BitState]) -> Vec<BitState>;
 
-pub struct DigitalComponent {
+pub struct DigitalComponent<'a> {
     name: String,
     inputs: Vec<BitState>,
     outputs: Vec<BitState>,
-    func: Box<ComponentLogic>,
+    func: &'a ComponentLogic,
 }
 
-impl PartialEq for DigitalComponent {
+impl PartialEq for DigitalComponent<'_> {
     fn eq(&self, rhs: &Self) -> bool {
         ptr::addr_eq(self, rhs)
     }
 }
 
-impl Eq for DigitalComponent {}
+impl Eq for DigitalComponent<'_> {}
 
-impl Hash for DigitalComponent {
+impl Hash for DigitalComponent<'_> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         ptr::addr_of!(self).hash(state);
     }
 }
 
-impl DigitalComponent {
-    pub fn new(input_number: usize, output_number: usize, func: Box<ComponentLogic>) -> Self {
+impl<'a> DigitalComponent<'a> {
+    pub fn new(
+        input_number: usize,
+        output_number: usize,
+        func: &'a ComponentLogic,
+    ) -> DigitalComponent<'a> {
         DigitalComponent::named(input_number, output_number, func, "")
     }
 
     pub fn named(
         input_number: usize,
         output_number: usize,
-        func: Box<ComponentLogic>,
+        func: &'a ComponentLogic,
         name: &str,
-    ) -> Self {
+    ) -> DigitalComponent<'a> {
         let mut dc = DigitalComponent {
             name: String::from(name),
             inputs: vec![BitState::Undefined; input_number],
@@ -100,11 +104,15 @@ impl DigitalComponent {
     }
 
     pub fn resolve(&mut self) -> bool {
-        (self.func)(&self.inputs, &mut self.outputs)
+        let new_output = (self.func)(&self.inputs);
+
+        let changed = self.outputs.iter().ne(new_output.iter());
+        self.outputs = new_output;
+        changed
     }
 }
 
-impl fmt::Display for DigitalComponent {
+impl fmt::Display for DigitalComponent<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let inputs: String = self
             .inputs

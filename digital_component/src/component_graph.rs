@@ -7,13 +7,13 @@ use std::ptr;
 use std::rc::Rc;
 
 #[derive(Eq, PartialEq)]
-pub enum NodeKind {
+pub enum NodeKind<'a> {
     ComponentInput {
-        component: Rc<DigitalComponent>,
+        component: Rc<DigitalComponent<'a>>,
         input: usize,
     },
     ComponentOutput {
-        component: Rc<DigitalComponent>,
+        component: Rc<DigitalComponent<'a>>,
         output: usize,
     },
     Input(usize),
@@ -21,7 +21,7 @@ pub enum NodeKind {
     Joint,
 }
 
-impl Debug for NodeKind {
+impl Debug for NodeKind<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         f.write_fmt(format_args!(
             "{}",
@@ -36,24 +36,24 @@ impl Debug for NodeKind {
     }
 }
 
-pub struct GraphNode {
+pub struct GraphNode<'a> {
     idx: usize,
-    kind: NodeKind,
-    neighbours: HashSet<GraphNodeRef>,
+    kind: NodeKind<'a>,
+    neighbours: HashSet<GraphNodeRef<'a>>,
 }
 
-impl GraphNode {
+impl GraphNode<'_> {
     pub fn kind(&self) -> &NodeKind {
         &self.kind
     }
 }
 
 #[derive(Clone)]
-pub struct GraphNodeRef {
-    node: Rc<RefCell<GraphNode>>,
+pub struct GraphNodeRef<'a> {
+    node: Rc<RefCell<GraphNode<'a>>>,
 }
 
-impl Debug for GraphNodeRef {
+impl Debug for GraphNodeRef<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         f.write_fmt(format_args!(
             "{:?}_{:?}",
@@ -63,33 +63,33 @@ impl Debug for GraphNodeRef {
     }
 }
 
-impl PartialEq for GraphNodeRef {
+impl PartialEq for GraphNodeRef<'_> {
     fn eq(&self, rhs: &Self) -> bool {
         ptr::addr_eq(&*self.node, &*rhs.node)
     }
 }
 
-impl Eq for GraphNodeRef {}
+impl Eq for GraphNodeRef<'_> {}
 
-impl Hash for GraphNodeRef {
+impl Hash for GraphNodeRef<'_> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         ptr::addr_of!(self).hash(state);
     }
 }
 
 #[derive(PartialEq, Eq, Default)]
-pub struct Graph {
-    components: HashSet<Rc<DigitalComponent>>,
-    adjacency: Vec<GraphNodeRef>,
+pub struct Graph<'a> {
+    components: HashSet<Rc<DigitalComponent<'a>>>,
+    adjacency: Vec<GraphNodeRef<'a>>,
 }
 
-impl Graph {
-    pub fn add_edge(&mut self, a: &mut GraphNodeRef, b: &mut GraphNodeRef) {
+impl<'a> Graph<'a> {
+    pub fn add_edge(&mut self, a: &mut GraphNodeRef<'a>, b: &mut GraphNodeRef<'a>) {
         a.node.borrow_mut().neighbours.insert(b.clone());
         b.node.borrow_mut().neighbours.insert(a.clone());
     }
 
-    pub fn add_node(&mut self, node_kind: NodeKind) -> GraphNodeRef {
+    pub fn add_node(&mut self, node_kind: NodeKind<'a>) -> GraphNodeRef<'a> {
         match &node_kind {
             NodeKind::ComponentInput { component, .. }
             | NodeKind::ComponentOutput { component, .. } => {
@@ -108,12 +108,12 @@ impl Graph {
         node
     }
 
-    pub fn nodes(&self) -> Vec<GraphNodeRef> {
+    pub fn nodes(&self) -> Vec<GraphNodeRef<'a>> {
         self.adjacency.to_vec()
     }
 }
 
-impl Debug for Graph {
+impl Debug for Graph<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         for GraphNodeRef { node: node_ref } in self.adjacency.iter() {
             f.write_fmt(format_args!(
@@ -147,13 +147,13 @@ mod tests {
     use super::*;
     use crate::*;
 
-    fn test(_: &Vec<BitState>, _: &mut Vec<BitState>) -> bool {
-        false
+    fn test(_: &[BitState]) -> Vec<BitState> {
+        vec![]
     }
 
     #[test]
     fn builds_graph() {
-        let comp = Rc::new(DigitalComponent::named(1, 1, Box::new(test), "test"));
+        let comp = Rc::new(DigitalComponent::named(1, 1, &test, "test"));
         let a = NodeKind::ComponentInput {
             component: comp.clone(),
             input: 0,

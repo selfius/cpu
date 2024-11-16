@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 
 mod types;
 use types::{Direction, Node, ParseError, ParsingMode, Symbol};
@@ -13,14 +13,17 @@ use structural_scan::{find_dangling_wires, structural_scan};
 mod node_graph;
 use node_graph::build_node_graph;
 
-use digital_component::Graph;
+use digital_component::{ComponentLogic, Graph};
 
-pub fn parse(source: &str) -> Result<Graph, ParseError> {
+pub fn parse<'a>(
+    source: &str,
+    comp_funcs: &'a HashMap<&str, Box<ComponentLogic>>,
+) -> Result<Graph<'a>, ParseError> {
     // scan what take break into what would be equivalent of a 2D token
     let result = scan(source)?;
 
     // no build an graph where wires from previous stage are edges and the rest is nodes
-    build_node_graph(result)
+    build_node_graph(result, comp_funcs)
 }
 
 fn scan(source: &str) -> Result<Vec<Node>, ParseError> {

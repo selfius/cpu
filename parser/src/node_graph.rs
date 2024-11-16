@@ -1,25 +1,35 @@
 use crate::types::{Node, ParseError, Position};
 use core::ops::Range;
-use digital_component::{DigitalComponent, Graph, GraphNodeRef, NodeKind};
+use digital_component::{ComponentLogic, DigitalComponent, Graph, GraphNodeRef, NodeKind};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-fn create_component_from_text_nodes(_: Vec<&Node>) -> DigitalComponent {
-    DigitalComponent::new(1, 1, Box::new(|_, _| false))
+fn create_component_from_text_nodes<'a>(
+    text_nodes: Vec<&Node>,
+    comp_funcs: &'a HashMap<&str, Box<ComponentLogic>>,
+) -> DigitalComponent<'a> {
+    if let Node::Text { value, .. } = text_nodes[0] {
+        let component_logic: &ComponentLogic = comp_funcs.get(&value[..]).unwrap();
+        DigitalComponent::new(1, 1, component_logic)
+    } else {
+        panic!("Expected function name got {:?}", text_nodes[0]);
+    }
 }
 
-pub fn build_node_graph(mut nodes: Vec<Node>) -> Result<Graph, ParseError> {
+pub fn build_node_graph<'a>(
+    mut nodes: Vec<Node>,
+    comp_funcs: &'a HashMap<&str, Box<ComponentLogic>>,
+) -> Result<Graph<'a>, ParseError> {
     let mut graph = Graph::default();
     let mut position_to_node: HashMap<&Position, GraphNodeRef> = HashMap::default();
     nodes.sort_by_key(|node| node.sort_key());
 
     for (box_node, text_nodes) in correlate_boxes_and_text(&nodes) {
-        //TODO based on the node we and token we can create a digital component
         if let Node::Box {
             inputs, outputs, ..
         } = box_node
         {
-            let component = Rc::new(create_component_from_text_nodes(text_nodes));
+            let component = Rc::new(create_component_from_text_nodes(text_nodes, comp_funcs));
 
             for (idx, input_position) in inputs.iter().enumerate() {
                 let node_ref = graph.add_node(NodeKind::ComponentInput {
@@ -84,10 +94,10 @@ fn correlate_boxes_and_text(nodes: &Vec<Node>) -> Vec<(&Node, Vec<&Node>)> {
     result
 }
 
-fn insert_inputs_outputs_into_graph<'a>(
-    graph: &mut Graph,
+fn insert_inputs_outputs_into_graph<'a, 'b>(
+    graph: &mut Graph<'b>,
     nodes: &'a [Node],
-    position_to_node: &mut HashMap<&'a Position, GraphNodeRef>,
+    position_to_node: &mut HashMap<&'a Position, GraphNodeRef<'b>>,
 ) {
     let mut input_idx = 0_usize;
     let mut output_idx = 0_usize;
@@ -107,10 +117,10 @@ fn insert_inputs_outputs_into_graph<'a>(
     }
 }
 
-fn insert_joints_into_graph<'a>(
-    graph: &mut Graph,
+fn insert_joints_into_graph<'a, 'b>(
+    graph: &mut Graph<'b>,
     nodes: &'a [Node],
-    position_to_node: &mut HashMap<&'a Position, GraphNodeRef>,
+    position_to_node: &mut HashMap<&'a Position, GraphNodeRef<'b>>,
 ) -> Result<(), ParseError> {
     let mut wire_joints: HashMap<&Position, u32> = HashMap::default();
 
@@ -147,10 +157,10 @@ fn insert_joints_into_graph<'a>(
     Ok(())
 }
 
-fn add_edges<'a>(
-    graph: &mut Graph,
+fn add_edges<'a, 'b>(
+    graph: &mut Graph<'b>,
     nodes: &'a [Node],
-    position_to_node: &mut HashMap<&'a Position, GraphNodeRef>,
+    position_to_node: &mut HashMap<&'a Position, GraphNodeRef<'b>>,
 ) {
     for node in nodes {
         if let Node::Wire { start, end } = node {
@@ -165,6 +175,12 @@ fn add_edges<'a>(
 mod tests {
     use crate::parse;
     use crate::types::*;
+    use digital_component::*;
+    use std::collections::HashMap;
+
+    fn test(_: &[BitState]) -> Vec<BitState> {
+        vec![]
+    }
 
     #[test]
     fn complete_graph() {
@@ -194,7 +210,10 @@ mod tests {
                                  ┗━━━━━┛   
     ";
 
-        let graph = parse(test_circuit).unwrap();
+        let mut comps: HashMap<&str, Box<ComponentLogic>> = HashMap::new();
+        comps.insert("and", Box::new(test));
+        comps.insert("not", Box::new(test));
+        let graph = parse(test_circuit, &comps).unwrap();
 
         //       ┏━━━┓
         //  18─24┨0 1┠─────┐
@@ -265,7 +284,7 @@ mod tests {
                ──┼─────┼──
                  │     └────
     ";
-        let error = parse(test_circuit).unwrap_err();
+        let error = parse(test_circuit, &HashMap::new()).unwrap_err();
         assert_eq!(
             error,
             ParseError::LooseWire {
