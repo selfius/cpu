@@ -1,4 +1,4 @@
-use super::DigitalComponent;
+use super::{ComponentLogic, DigitalComponent};
 use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fmt::{Debug, Error, Formatter};
@@ -111,6 +111,47 @@ impl<'a> Graph<'a> {
     pub fn nodes(&self) -> Vec<GraphNodeRef<'a>> {
         self.adjacency.to_vec()
     }
+
+    fn _finalize(self) -> Box<ComponentLogic> {
+        // construct the union find structure
+        // to simplify the connections and create a new adjacency graph out of that
+        let mut uf_component_indices: Vec<_> = (0..self.adjacency.len()).collect();
+        for node_ref in &self.adjacency {
+            let mut this_idx = node_ref.node.borrow().idx;
+            while this_idx != uf_component_indices[this_idx] {
+                this_idx = uf_component_indices[this_idx];
+            }
+            for neighbour in &node_ref.node.borrow().neighbours {
+                let mut that_idx = neighbour.node.borrow().idx;
+                while that_idx != uf_component_indices[that_idx] {
+                    that_idx = uf_component_indices[that_idx];
+                }
+                uf_component_indices[that_idx] = this_idx;
+            }
+        }
+
+        for idx in 0..uf_component_indices.len() {
+            let mut root_component_idx = idx;
+            let mut walk_back_indices = vec![];
+            while uf_component_indices[root_component_idx] != root_component_idx {
+                walk_back_indices.push(root_component_idx);
+                root_component_idx = uf_component_indices[root_component_idx];
+            }
+            while let Some(last) = walk_back_indices.pop() {
+                uf_component_indices[last] = root_component_idx;
+            }
+        }
+
+        println!(
+            "{:?}",
+            uf_component_indices
+                .into_iter()
+                .enumerate()
+                .collect::<Vec<_>>()
+        );
+
+        unimplemented!("Convert the whole graph in a comp logic function")
+    }
 }
 
 impl Debug for Graph<'_> {
@@ -169,8 +210,6 @@ mod tests {
         graph.add_edge(&mut a_node, &mut b_node);
         graph.add_edge(&mut d_node, &mut b_node);
 
-        println!("{graph:?}");
-
         assert_eq!(
             format!("{graph:?}"),
             "\
@@ -180,5 +219,27 @@ mod tests {
             3_joint -> [ 1_joint]\n\
             "
         );
+    }
+
+    #[test]
+    #[should_panic]
+    fn converts_graph_into_component_logic() {
+        let comp = Rc::new(DigitalComponent::named(1, 1, &test, "test"));
+        let a = NodeKind::ComponentInput {
+            component: comp.clone(),
+            input: 0,
+        };
+        let b = NodeKind::Joint;
+        let c = NodeKind::Joint;
+        let d = NodeKind::Joint;
+        let mut graph = Graph::default();
+        let mut a_node = graph.add_node(a);
+        let mut b_node = graph.add_node(b);
+        let _c_node = graph.add_node(c);
+        let mut d_node = graph.add_node(d);
+        graph.add_edge(&mut a_node, &mut b_node);
+        graph.add_edge(&mut d_node, &mut b_node);
+
+        let _result = graph._finalize();
     }
 }
