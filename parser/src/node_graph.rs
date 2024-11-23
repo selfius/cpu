@@ -1,6 +1,9 @@
 use crate::types::{Node, ParseError, Position};
 use core::ops::Range;
-use digital_component::{ComponentLogic, DigitalComponent, Graph, GraphNodeRef, NodeKind};
+use digital_component::{
+    ComponentInput, ComponentLogic, ComponentOutput, DigitalComponent, Graph, GraphNodeRef,
+    NodeKind,
+};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -32,18 +35,16 @@ pub fn build_node_graph<'a>(
             let component = Rc::new(create_component_from_text_nodes(text_nodes, comp_funcs));
 
             for (idx, input_position) in inputs.iter().enumerate() {
-                let node_ref = graph.add_node(NodeKind::ComponentInput {
-                    component: Rc::clone(&component),
-                    input: idx,
-                });
+                let node_ref = graph.add_node(NodeKind::ComponentInput(ComponentInput::new(
+                    &component, idx,
+                )));
                 position_to_node.insert(input_position, node_ref);
             }
 
             for (idx, output_position) in outputs.iter().enumerate() {
-                let node_ref = graph.add_node(NodeKind::ComponentOutput {
-                    component: Rc::clone(&component),
-                    output: idx,
-                });
+                let node_ref = graph.add_node(NodeKind::ComponentOutput(ComponentOutput::new(
+                    &component, idx,
+                )));
                 position_to_node.insert(output_position, node_ref);
             }
         } else {

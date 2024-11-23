@@ -25,7 +25,7 @@ impl Eq for DigitalComponent<'_> {}
 
 impl Hash for DigitalComponent<'_> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        ptr::addr_of!(self).hash(state);
+        ptr::addr_of!(*self).hash(state);
     }
 }
 
@@ -139,5 +139,11 @@ impl fmt::Display for DigitalComponent<'_> {
         };
 
         write!(f, "{} inputs[{}] outputs[{}]", name, inputs, outputs)
+    }
+}
+
+impl fmt::Debug for DigitalComponent<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
     }
 }

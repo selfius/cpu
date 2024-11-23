@@ -2,7 +2,9 @@ mod digital_component;
 pub use digital_component::{ComponentLogic, DigitalComponent};
 
 mod component_graph;
-pub use component_graph::{Graph, GraphNode, GraphNodeRef, NodeKind};
+pub use component_graph::{
+    ComponentInput, ComponentOutput, Graph, GraphNode, GraphNodeRef, NodeKind,
+};
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum BitState {
