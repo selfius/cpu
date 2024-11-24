@@ -212,9 +212,29 @@ impl<'a> Graph<'a> {
 
     fn outer_output_mapping(
         &self,
-        _uf_component_indices: &[usize],
+        uf_component_indices: &[usize],
     ) -> HashMap<ComponentOutput, HashSet<usize>> {
-        unimplemented!()
+        let mut outer_output_mapping = HashMap::<ComponentOutput, HashSet<usize>>::new();
+
+        for node_ref in &self.adjacency {
+            let node = node_ref.node.borrow();
+            if let NodeKind::ComponentOutput(component_output) = &node.kind {
+                let node_set_idx = uf_component_indices[node.idx];
+                let outputs = uf_component_indices
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, set_idx)| **set_idx == node_set_idx)
+                    .filter_map(|(idx, _)| match &self.adjacency[idx].node.borrow().kind {
+                        NodeKind::Output(output_idx) => Some(*output_idx),
+                        _ => None,
+                    })
+                    .collect::<HashSet<_>>();
+                if !outputs.is_empty() {
+                    outer_output_mapping.insert(component_output.clone(), outputs);
+                }
+            }
+        }
+        outer_output_mapping
     }
 
     pub fn finalize(self) -> Box<ComponentLogic> {
@@ -399,6 +419,40 @@ mod tests {
         );
 
         let mapping = graph.outer_input_mapping(&graph.find_disjointed_node_sets());
+
+        assert_eq!(mapping, expected);
+    }
+
+    #[test]
+    fn generates_outer_output_mapping() {
+        let reg_1 = Rc::new(DigitalComponent::named(2, 2, &test, "Reg#1"));
+        let reg_2 = Rc::new(DigitalComponent::named(2, 2, &test, "Reg#2"));
+
+        let mut graph = Graph::default();
+        let mut reg_1_output_0 =
+            graph.add_node(NodeKind::ComponentOutput(ComponentOutput::new(&reg_1, 0)));
+        let _reg_1_output_1 =
+            graph.add_node(NodeKind::ComponentOutput(ComponentOutput::new(&reg_1, 1)));
+        let _reg_2_output_0 =
+            graph.add_node(NodeKind::ComponentOutput(ComponentOutput::new(&reg_2, 0)));
+        let mut reg_2_output_1 =
+            graph.add_node(NodeKind::ComponentOutput(ComponentOutput::new(&reg_2, 1)));
+        let mut outer_output_0 = graph.add_node(NodeKind::Output(0));
+        let mut outer_output_1 = graph.add_node(NodeKind::Output(1));
+        graph.add_edge(&mut outer_output_0, &mut reg_1_output_0);
+        graph.add_edge(&mut outer_output_1, &mut reg_2_output_1);
+
+        let mut expected = HashMap::new();
+        expected.insert(
+            ComponentOutput::new(&reg_1, 0),
+            vec![0].into_iter().collect::<HashSet<_>>(),
+        );
+        expected.insert(
+            ComponentOutput::new(&reg_2, 1),
+            vec![1].into_iter().collect::<HashSet<_>>(),
+        );
+
+        let mapping = graph.outer_output_mapping(&graph.find_disjointed_node_sets());
 
         assert_eq!(mapping, expected);
     }
