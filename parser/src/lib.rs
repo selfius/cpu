@@ -1,4 +1,5 @@
 use std::collections::{HashMap, VecDeque};
+use std::rc::Rc;
 
 mod types;
 use types::{Direction, Node, ParseError, ParsingMode, Symbol};
@@ -15,10 +16,10 @@ use node_graph::build_node_graph;
 
 use digital_component::{ComponentLogic, Graph};
 
-pub fn parse<'a>(
+pub fn parse(
     source: &str,
-    comp_funcs: &'a HashMap<&str, Box<ComponentLogic>>,
-) -> Result<Graph<'a>, ParseError> {
+    comp_funcs: &HashMap<&str, Rc<ComponentLogic>>,
+) -> Result<Graph, ParseError> {
     // scan what take break into what would be equivalent of a 2D token
     let result = scan(source)?;
 

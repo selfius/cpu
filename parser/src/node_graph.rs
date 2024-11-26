@@ -7,22 +7,22 @@ use digital_component::{
 use std::collections::HashMap;
 use std::rc::Rc;
 
-fn create_component_from_text_nodes<'a>(
+fn create_component_from_text_nodes(
     text_nodes: Vec<&Node>,
-    comp_funcs: &'a HashMap<&str, Box<ComponentLogic>>,
-) -> DigitalComponent<'a> {
+    comp_funcs: &HashMap<&str, Rc<ComponentLogic>>,
+) -> DigitalComponent {
     if let Node::Text { value, .. } = text_nodes[0] {
-        let component_logic: &ComponentLogic = comp_funcs.get(&value[..]).unwrap();
-        DigitalComponent::new(1, 1, component_logic)
+        let component_logic: &Rc<ComponentLogic> = comp_funcs.get(&value[..]).unwrap();
+        DigitalComponent::new(1, 1, Rc::clone(component_logic))
     } else {
         panic!("Expected function name got {:?}", text_nodes[0]);
     }
 }
 
-pub fn build_node_graph<'a>(
+pub fn build_node_graph(
     mut nodes: Vec<Node>,
-    comp_funcs: &'a HashMap<&str, Box<ComponentLogic>>,
-) -> Result<Graph<'a>, ParseError> {
+    comp_funcs: &HashMap<&str, Rc<ComponentLogic>>,
+) -> Result<Graph, ParseError> {
     let mut graph = Graph::default();
     let mut position_to_node: HashMap<&Position, GraphNodeRef> = HashMap::default();
     nodes.sort_by_key(|node| node.sort_key());
@@ -95,10 +95,10 @@ fn correlate_boxes_and_text(nodes: &Vec<Node>) -> Vec<(&Node, Vec<&Node>)> {
     result
 }
 
-fn insert_inputs_outputs_into_graph<'a, 'b>(
-    graph: &mut Graph<'b>,
+fn insert_inputs_outputs_into_graph<'a>(
+    graph: &mut Graph,
     nodes: &'a [Node],
-    position_to_node: &mut HashMap<&'a Position, GraphNodeRef<'b>>,
+    position_to_node: &mut HashMap<&'a Position, GraphNodeRef>,
 ) {
     let mut input_idx = 0_usize;
     let mut output_idx = 0_usize;
@@ -118,10 +118,10 @@ fn insert_inputs_outputs_into_graph<'a, 'b>(
     }
 }
 
-fn insert_joints_into_graph<'a, 'b>(
-    graph: &mut Graph<'b>,
+fn insert_joints_into_graph<'a>(
+    graph: &mut Graph,
     nodes: &'a [Node],
-    position_to_node: &mut HashMap<&'a Position, GraphNodeRef<'b>>,
+    position_to_node: &mut HashMap<&'a Position, GraphNodeRef>,
 ) -> Result<(), ParseError> {
     let mut wire_joints: HashMap<&Position, u32> = HashMap::default();
 
@@ -158,16 +158,16 @@ fn insert_joints_into_graph<'a, 'b>(
     Ok(())
 }
 
-fn add_edges<'a, 'b>(
-    graph: &mut Graph<'b>,
+fn add_edges<'a>(
+    graph: &mut Graph,
     nodes: &'a [Node],
-    position_to_node: &mut HashMap<&'a Position, GraphNodeRef<'b>>,
+    position_to_node: &mut HashMap<&'a Position, GraphNodeRef>,
 ) {
     for node in nodes {
         if let Node::Wire { start, end } = node {
-            let mut a = position_to_node.get_mut(start).unwrap().clone();
-            let mut b = position_to_node.get_mut(end).unwrap().clone();
-            graph.add_edge(&mut a, &mut b);
+            let a = position_to_node.get(start).unwrap();
+            let b = position_to_node.get(end).unwrap();
+            graph.add_edge(a, b);
         }
     }
 }
@@ -178,6 +178,7 @@ mod tests {
     use crate::types::*;
     use digital_component::*;
     use std::collections::HashMap;
+    use std::rc::Rc;
 
     fn test(_: &[BitState]) -> Vec<BitState> {
         vec![]
@@ -211,9 +212,9 @@ mod tests {
                                  ┗━━━━━┛   
     ";
 
-        let mut comps: HashMap<&str, Box<ComponentLogic>> = HashMap::new();
-        comps.insert("and", Box::new(test));
-        comps.insert("not", Box::new(test));
+        let mut comps: HashMap<&str, Rc<ComponentLogic>> = HashMap::new();
+        comps.insert("and", Rc::new(test));
+        comps.insert("not", Rc::new(test));
         let graph = parse(test_circuit, &comps).unwrap();
 
         //       ┏━━━┓

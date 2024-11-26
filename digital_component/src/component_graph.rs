@@ -1,31 +1,29 @@
-use super::{ComponentLogic, DigitalComponent};
-use std::cell::RefCell;
+use super::{BitState, ComponentLogic, DigitalComponent};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Error, Formatter};
-use std::hash::{Hash, Hasher};
-use std::ptr;
+use std::hash::Hash;
 use std::rc::Rc;
 
 #[derive(Eq, PartialEq)]
-pub enum NodeKind<'a> {
-    ComponentInput(ComponentInput<'a>),
-    ComponentOutput(ComponentOutput<'a>),
+pub enum NodeKind {
+    ComponentInput(ComponentInput),
+    ComponentOutput(ComponentOutput),
     Input(usize),
     Output(usize),
     Joint,
 }
 
-pub type ComponentInput<'a> = ComponentPin<'a>;
-pub type ComponentOutput<'a> = ComponentPin<'a>;
+pub type ComponentInput = ComponentPin;
+pub type ComponentOutput = ComponentPin;
 
 #[derive(Eq, PartialEq, Hash, Clone, Debug)]
-pub struct ComponentPin<'a> {
-    component: Rc<DigitalComponent<'a>>,
+pub struct ComponentPin {
+    component: Rc<DigitalComponent>,
     pin: usize,
 }
 
-impl<'a> ComponentPin<'a> {
-    pub fn new(component: &Rc<DigitalComponent<'a>>, pin: usize) -> ComponentPin<'a> {
+impl ComponentPin {
+    pub fn new(component: &Rc<DigitalComponent>, pin: usize) -> ComponentPin {
         ComponentPin {
             component: Rc::clone(component),
             pin,
@@ -33,8 +31,8 @@ impl<'a> ComponentPin<'a> {
     }
 }
 
-impl Debug for NodeKind<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+impl Debug for NodeKind {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         f.write_fmt(format_args!(
             "{}",
             match self {
@@ -50,91 +48,35 @@ impl Debug for NodeKind<'_> {
     }
 }
 
-pub struct GraphNode<'a> {
-    idx: usize,
-    kind: NodeKind<'a>,
-    neighbours: HashSet<GraphNodeRef<'a>>,
-}
-
-impl GraphNode<'_> {
-    pub fn kind(&self) -> &NodeKind {
-        &self.kind
-    }
-}
-
-#[derive(Clone)]
-pub struct GraphNodeRef<'a> {
-    node: Rc<RefCell<GraphNode<'a>>>,
-}
-
-impl Debug for GraphNodeRef<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
-        f.write_fmt(format_args!(
-            "{:?}_{:?}",
-            self.node.borrow().kind,
-            ptr::addr_of!(self.node)
-        ))
-    }
-}
-
-impl PartialEq for GraphNodeRef<'_> {
-    fn eq(&self, rhs: &Self) -> bool {
-        ptr::addr_eq(&*self.node, &*rhs.node)
-    }
-}
-
-impl Eq for GraphNodeRef<'_> {}
-
-impl Hash for GraphNodeRef<'_> {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        ptr::addr_of!(self).hash(state);
-    }
-}
+pub type GraphNodeRef = usize;
 
 #[derive(PartialEq, Eq, Default)]
-pub struct Graph<'a> {
-    components: HashSet<Rc<DigitalComponent<'a>>>,
-    adjacency: Vec<GraphNodeRef<'a>>,
+pub struct Graph {
+    nodes: Vec<NodeKind>,
+    adjacency: Vec<HashSet<GraphNodeRef>>,
 }
 
-impl<'a> Graph<'a> {
-    pub fn add_edge(&mut self, a: &mut GraphNodeRef<'a>, b: &mut GraphNodeRef<'a>) {
-        a.node.borrow_mut().neighbours.insert(b.clone());
-        b.node.borrow_mut().neighbours.insert(a.clone());
+impl Graph {
+    pub fn add_edge(&mut self, a: &GraphNodeRef, b: &GraphNodeRef) {
+        self.adjacency[*a].insert(*b);
+        self.adjacency[*b].insert(*a);
     }
 
-    pub fn add_node(&mut self, node_kind: NodeKind<'a>) -> GraphNodeRef<'a> {
-        match &node_kind {
-            NodeKind::ComponentInput(ComponentPin { component, .. })
-            | NodeKind::ComponentOutput(ComponentPin { component, .. }) => {
-                self.components.insert(component.clone());
-            }
-            _ => (),
-        };
-        let node = GraphNodeRef {
-            node: Rc::new(RefCell::new(GraphNode {
-                idx: self.adjacency.len(),
-                kind: node_kind,
-                neighbours: HashSet::default(),
-            })),
-        };
-        self.adjacency.push(node.clone());
-        node
+    pub fn add_node(&mut self, node_kind: NodeKind) -> GraphNodeRef {
+        self.nodes.push(node_kind);
+        self.adjacency.push(HashSet::default());
+        self.nodes.len() - 1
     }
 
-    pub fn nodes(&self) -> Vec<GraphNodeRef<'a>> {
-        self.adjacency.to_vec()
-    }
-
-    fn find_disjointed_node_sets(&self) -> Vec<usize> {
-        let mut uf_component_indices: Vec<_> = (0..self.adjacency.len()).collect();
-        for node_ref in &self.adjacency {
-            let mut this_idx = node_ref.node.borrow().idx;
+    fn find_disjointed_node_sets(&self) -> Vec<GraphNodeRef> {
+        let mut uf_component_indices: Vec<_> = (0..self.nodes.len()).collect();
+        for node_idx in 0..self.nodes.len() {
+            let mut this_idx = node_idx;
             while this_idx != uf_component_indices[this_idx] {
                 this_idx = uf_component_indices[this_idx];
             }
-            for neighbour in &node_ref.node.borrow().neighbours {
-                let mut that_idx = neighbour.node.borrow().idx;
+            for neighbour_idx in self.adjacency[node_idx].iter() {
+                let mut that_idx = *neighbour_idx;
                 while that_idx != uf_component_indices[that_idx] {
                     that_idx = uf_component_indices[that_idx];
                 }
@@ -156,85 +98,64 @@ impl<'a> Graph<'a> {
         uf_component_indices
     }
 
-    fn output_to_input_mapping(
+    fn find_mapping(
         &self,
-        uf_component_indices: &[usize],
-    ) -> HashMap<ComponentInput, HashSet<ComponentOutput>> {
-        let mut output_to_input = HashMap::<ComponentOutput, HashSet<ComponentInput>>::new();
+        uf_component_indices: &[GraphNodeRef],
+        source_node_type_check: &dyn Fn(&NodeKind) -> bool,
+        dest_node_type_check: &dyn Fn(&NodeKind) -> bool,
+    ) -> HashMap<GraphNodeRef, HashSet<GraphNodeRef>> {
+        let mut mapping = HashMap::new();
 
-        for node_ref in &self.adjacency {
-            let node = node_ref.node.borrow();
-            if let NodeKind::ComponentOutput(component_output) = &node.kind {
-                let node_set_idx = uf_component_indices[node.idx];
-                let inputs = uf_component_indices
+        for idx in 0..self.nodes.len() {
+            if source_node_type_check(&self.nodes[idx]) {
+                let node_set_idx = uf_component_indices[idx];
+                let dest = uf_component_indices
                     .iter()
                     .enumerate()
                     .filter(|(_, set_idx)| **set_idx == node_set_idx)
-                    .filter_map(|(idx, _)| match &self.adjacency[idx].node.borrow().kind {
-                        NodeKind::ComponentInput(component_input) => Some(component_input.clone()),
-                        _ => None,
+                    .filter_map(|(neighbour_idx, _)| {
+                        Some(neighbour_idx).filter(|idx| dest_node_type_check(&self.nodes[*idx]))
                     })
                     .collect::<HashSet<_>>();
-                if !inputs.is_empty() {
-                    output_to_input.insert(component_output.clone(), inputs);
+                if !dest.is_empty() {
+                    mapping.insert(idx, dest);
                 }
             }
         }
-        output_to_input
+        mapping
+    }
+
+    fn output_to_input_mapping(
+        &self,
+        uf_component_indices: &[GraphNodeRef],
+    ) -> HashMap<GraphNodeRef, HashSet<GraphNodeRef>> {
+        self.find_mapping(
+            uf_component_indices,
+            &|node| matches!(node, NodeKind::ComponentOutput { .. }),
+            &|node| matches!(node, NodeKind::ComponentInput { .. }),
+        )
     }
 
     fn outer_input_mapping(
         &self,
         uf_component_indices: &[usize],
-    ) -> HashMap<usize, HashSet<ComponentInput>> {
-        let mut outer_input_mapping = HashMap::<usize, HashSet<ComponentInput>>::new();
-
-        for node_ref in &self.adjacency {
-            let node = node_ref.node.borrow();
-            if let NodeKind::Input(input_idx) = &node.kind {
-                let node_set_idx = uf_component_indices[node.idx];
-                let inputs = uf_component_indices
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, set_idx)| **set_idx == node_set_idx)
-                    .filter_map(|(idx, _)| match &self.adjacency[idx].node.borrow().kind {
-                        NodeKind::ComponentInput(component_input) => Some(component_input.clone()),
-                        _ => None,
-                    })
-                    .collect::<HashSet<_>>();
-                if !inputs.is_empty() {
-                    outer_input_mapping.insert(*input_idx, inputs);
-                }
-            }
-        }
-        outer_input_mapping
+    ) -> HashMap<GraphNodeRef, HashSet<GraphNodeRef>> {
+        self.find_mapping(
+            uf_component_indices,
+            &|node| matches!(node, NodeKind::Input { .. }),
+            &|node| matches!(node, NodeKind::ComponentInput { .. }),
+        )
     }
 
     fn outer_output_mapping(
         &self,
         uf_component_indices: &[usize],
-    ) -> HashMap<ComponentOutput, HashSet<usize>> {
-        let mut outer_output_mapping = HashMap::<ComponentOutput, HashSet<usize>>::new();
-
-        for node_ref in &self.adjacency {
-            let node = node_ref.node.borrow();
-            if let NodeKind::ComponentOutput(component_output) = &node.kind {
-                let node_set_idx = uf_component_indices[node.idx];
-                let outputs = uf_component_indices
-                    .iter()
-                    .enumerate()
-                    .filter(|(_, set_idx)| **set_idx == node_set_idx)
-                    .filter_map(|(idx, _)| match &self.adjacency[idx].node.borrow().kind {
-                        NodeKind::Output(output_idx) => Some(*output_idx),
-                        _ => None,
-                    })
-                    .collect::<HashSet<_>>();
-                if !outputs.is_empty() {
-                    outer_output_mapping.insert(component_output.clone(), outputs);
-                }
-            }
-        }
-        outer_output_mapping
+    ) -> HashMap<GraphNodeRef, HashSet<GraphNodeRef>> {
+        self.find_mapping(
+            uf_component_indices,
+            &|node| matches!(node, NodeKind::Output { .. }),
+            &|node| matches!(node, NodeKind::ComponentOutput { .. }),
+        )
     }
 
     pub fn finalize(self) -> Box<ComponentLogic> {
@@ -243,6 +164,9 @@ impl<'a> Graph<'a> {
         let _outer_input_mapping = self.outer_input_mapping(&uf_component_indices);
         let _outer_output_mapping = self.outer_output_mapping(&uf_component_indices);
 
+        let _component_logic =
+            move |_inputs_bits: &[BitState]| -> Vec<BitState> { unimplemented!() };
+
         println!(
             "{:?}",
             uf_component_indices
@@ -250,32 +174,22 @@ impl<'a> Graph<'a> {
                 .enumerate()
                 .collect::<Vec<_>>()
         );
-
-        unimplemented!("Convert the whole graph in a comp logic function")
+        unimplemented!()
     }
 }
 
-impl Debug for Graph<'_> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
-        for GraphNodeRef { node: node_ref } in self.adjacency.iter() {
-            f.write_fmt(format_args!(
-                "{:?}_{:?} -> [ ",
-                node_ref.borrow().idx,
-                node_ref.borrow().kind
-            ))?;
+impl Debug for Graph {
+    fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
+        for (node_idx, node) in self.nodes.iter().enumerate() {
+            f.write_fmt(format_args!("{:?}_{:?} -> [ ", node_idx, node))?;
 
-            let neighbours = &mut node_ref
-                .borrow()
-                .neighbours
+            let mut neighbours = self.adjacency[node_idx]
                 .iter()
-                .map(|neighbour| {
-                    format!(
-                        "{:?}_{:?}",
-                        neighbour.node.borrow().idx,
-                        neighbour.node.borrow().kind
-                    )
+                .map(|neighbour_idx| {
+                    format!("{:?}_{:?}", neighbour_idx, self.nodes[*neighbour_idx],)
                 })
                 .collect::<Vec<_>>();
+
             neighbours.sort();
             f.write_str(&neighbours.join(", "))?;
             f.write_str("]\n")?;
@@ -295,18 +209,18 @@ mod tests {
 
     #[test]
     fn builds_graph() {
-        let comp = Rc::new(DigitalComponent::named(1, 1, &test, "test"));
+        let comp = Rc::new(DigitalComponent::named(1, 1, Rc::new(test), "test"));
         let a = NodeKind::ComponentInput(ComponentInput::new(&comp, 0));
         let b = NodeKind::Joint;
         let c = NodeKind::Joint;
         let d = NodeKind::Joint;
         let mut graph = Graph::default();
-        let mut a_node = graph.add_node(a);
-        let mut b_node = graph.add_node(b);
+        let a_node = graph.add_node(a);
+        let b_node = graph.add_node(b);
         let _c_node = graph.add_node(c);
-        let mut d_node = graph.add_node(d);
-        graph.add_edge(&mut a_node, &mut b_node);
-        graph.add_edge(&mut d_node, &mut b_node);
+        let d_node = graph.add_node(d);
+        graph.add_edge(&a_node, &b_node);
+        graph.add_edge(&d_node, &b_node);
 
         assert_eq!(
             format!("{graph:?}"),
@@ -321,64 +235,58 @@ mod tests {
 
     #[test]
     fn finds_disjointed_node_sets() {
-        let comp = Rc::new(DigitalComponent::named(1, 1, &test, "test"));
+        let comp = Rc::new(DigitalComponent::named(1, 1, Rc::new(test), "test"));
         let a = NodeKind::ComponentInput(ComponentInput::new(&comp, 0));
         let mut graph = Graph::default();
-        let mut a_node = graph.add_node(a);
-        let mut b_node = graph.add_node(NodeKind::Joint);
+        let a_node = graph.add_node(a);
+        let b_node = graph.add_node(NodeKind::Joint);
         let _c_node = graph.add_node(NodeKind::Joint);
-        let mut d_node = graph.add_node(NodeKind::Joint);
-        let mut _e_node = graph.add_node(NodeKind::Joint);
-        graph.add_edge(&mut a_node, &mut b_node);
-        graph.add_edge(&mut d_node, &mut b_node);
+        let d_node = graph.add_node(NodeKind::Joint);
+        let _e_node = graph.add_node(NodeKind::Joint);
+        graph.add_edge(&a_node, &b_node);
+        graph.add_edge(&d_node, &b_node);
 
         assert_eq!(graph.find_disjointed_node_sets(), vec![0, 0, 2, 0, 4]);
     }
 
     #[test]
-    fn generates_input_to_output_mapping() {
-        let reg_1 = Rc::new(DigitalComponent::named(2, 2, &test, "Reg#1"));
-        let reg_2 = Rc::new(DigitalComponent::named(2, 2, &test, "Reg#2"));
+    fn generates_output_to_input_mapping() {
+        let reg_1 = Rc::new(DigitalComponent::named(2, 2, Rc::new(test), "Reg#1"));
+        let reg_2 = Rc::new(DigitalComponent::named(2, 2, Rc::new(test), "Reg#2"));
 
         let mut graph = Graph::default();
         let _reg_1_input_0 =
             graph.add_node(NodeKind::ComponentInput(ComponentInput::new(&reg_1, 0)));
         let _reg_1_input_1 =
             graph.add_node(NodeKind::ComponentInput(ComponentInput::new(&reg_1, 1)));
-        let mut reg_1_output_0 =
+        let reg_1_output_0 =
             graph.add_node(NodeKind::ComponentOutput(ComponentOutput::new(&reg_1, 0)));
-        let mut reg_1_output_1 =
+        let reg_1_output_1 =
             graph.add_node(NodeKind::ComponentOutput(ComponentOutput::new(&reg_1, 1)));
 
-        let mut joint = graph.add_node(NodeKind::Joint);
+        let joint = graph.add_node(NodeKind::Joint);
 
-        let mut reg_2_input_0 =
+        let reg_2_input_0 =
             graph.add_node(NodeKind::ComponentInput(ComponentInput::new(&reg_2, 0)));
-        let mut reg_2_input_1 =
+        let reg_2_input_1 =
             graph.add_node(NodeKind::ComponentInput(ComponentInput::new(&reg_2, 1)));
         let _reg_2_output_0 =
             graph.add_node(NodeKind::ComponentOutput(ComponentOutput::new(&reg_2, 0)));
         let _reg_2_output_1 =
             graph.add_node(NodeKind::ComponentOutput(ComponentOutput::new(&reg_2, 1)));
 
-        graph.add_edge(&mut reg_1_output_0, &mut joint);
-        graph.add_edge(&mut joint, &mut reg_2_input_0);
-        graph.add_edge(&mut reg_1_output_1, &mut reg_2_input_1);
+        graph.add_edge(&reg_1_output_0, &joint);
+        graph.add_edge(&joint, &reg_2_input_0);
+        graph.add_edge(&reg_1_output_1, &reg_2_input_1);
 
         let mut expected = HashMap::new();
         let mut outputs_connected_to_reg1_output_0 = HashSet::new();
-        outputs_connected_to_reg1_output_0.insert(ComponentInput::new(&reg_2, 0));
-        expected.insert(
-            ComponentOutput::new(&reg_1, 0),
-            outputs_connected_to_reg1_output_0,
-        );
+        outputs_connected_to_reg1_output_0.insert(reg_2_input_0);
+        expected.insert(reg_1_output_0, outputs_connected_to_reg1_output_0);
 
         let mut outputs_connected_to_reg1_output_1 = HashSet::new();
-        outputs_connected_to_reg1_output_1.insert(ComponentInput::new(&reg_2, 1));
-        expected.insert(
-            ComponentOutput::new(&reg_1, 1),
-            outputs_connected_to_reg1_output_1,
-        );
+        outputs_connected_to_reg1_output_1.insert(reg_2_input_1);
+        expected.insert(reg_1_output_1, outputs_connected_to_reg1_output_1);
 
         let mapping = graph.output_to_input_mapping(&graph.find_disjointed_node_sets());
 
@@ -387,36 +295,35 @@ mod tests {
 
     #[test]
     fn generates_outer_input_mapping() {
-        let reg_1 = Rc::new(DigitalComponent::named(2, 2, &test, "Reg#1"));
-        let reg_2 = Rc::new(DigitalComponent::named(2, 2, &test, "Reg#2"));
+        let reg_1 = Rc::new(DigitalComponent::named(2, 2, Rc::new(test), "Reg#1"));
+        let reg_2 = Rc::new(DigitalComponent::named(2, 2, Rc::new(test), "Reg#2"));
 
         let mut graph = Graph::default();
-        let mut reg_1_input_0 =
+        let reg_1_input_0 =
             graph.add_node(NodeKind::ComponentInput(ComponentInput::new(&reg_1, 0)));
         let _reg_1_input_1 =
             graph.add_node(NodeKind::ComponentInput(ComponentInput::new(&reg_1, 1)));
         let _reg_2_input_0 =
             graph.add_node(NodeKind::ComponentInput(ComponentInput::new(&reg_2, 0)));
-        let mut reg_2_input_1 =
+        let reg_2_input_1 =
             graph.add_node(NodeKind::ComponentInput(ComponentInput::new(&reg_2, 1)));
-        let mut outer_input_0 = graph.add_node(NodeKind::Input(0));
-        let mut outer_input_1 = graph.add_node(NodeKind::Input(1));
-        graph.add_edge(&mut outer_input_0, &mut reg_1_input_0);
-        graph.add_edge(&mut outer_input_1, &mut reg_2_input_1);
+        let outer_input_0 = graph.add_node(NodeKind::Input(0));
+        let outer_input_1 = graph.add_node(NodeKind::Input(1));
+        graph.add_edge(&outer_input_0, &reg_1_input_0);
+        graph.add_edge(&outer_input_1, &reg_2_input_1);
 
-        let mut expected = HashMap::new();
-        expected.insert(
-            0,
-            vec![ComponentInput::new(&reg_1, 0)]
-                .into_iter()
-                .collect::<HashSet<_>>(),
-        );
-        expected.insert(
-            1,
-            vec![ComponentInput::new(&reg_2, 1)]
-                .into_iter()
-                .collect::<HashSet<_>>(),
-        );
+        let expected = [
+            (
+                outer_input_0,
+                [reg_1_input_0].into_iter().collect::<HashSet<_>>(),
+            ),
+            (
+                outer_input_1,
+                [reg_2_input_1].into_iter().collect::<HashSet<_>>(),
+            ),
+        ]
+        .into_iter()
+        .collect::<HashMap<_, _>>();
 
         let mapping = graph.outer_input_mapping(&graph.find_disjointed_node_sets());
 
@@ -425,32 +332,35 @@ mod tests {
 
     #[test]
     fn generates_outer_output_mapping() {
-        let reg_1 = Rc::new(DigitalComponent::named(2, 2, &test, "Reg#1"));
-        let reg_2 = Rc::new(DigitalComponent::named(2, 2, &test, "Reg#2"));
+        let reg_1 = Rc::new(DigitalComponent::named(2, 2, Rc::new(test), "Reg#1"));
+        let reg_2 = Rc::new(DigitalComponent::named(2, 2, Rc::new(test), "Reg#2"));
 
         let mut graph = Graph::default();
-        let mut reg_1_output_0 =
+        let reg_1_output_0 =
             graph.add_node(NodeKind::ComponentOutput(ComponentOutput::new(&reg_1, 0)));
         let _reg_1_output_1 =
             graph.add_node(NodeKind::ComponentOutput(ComponentOutput::new(&reg_1, 1)));
         let _reg_2_output_0 =
             graph.add_node(NodeKind::ComponentOutput(ComponentOutput::new(&reg_2, 0)));
-        let mut reg_2_output_1 =
+        let reg_2_output_1 =
             graph.add_node(NodeKind::ComponentOutput(ComponentOutput::new(&reg_2, 1)));
-        let mut outer_output_0 = graph.add_node(NodeKind::Output(0));
-        let mut outer_output_1 = graph.add_node(NodeKind::Output(1));
-        graph.add_edge(&mut outer_output_0, &mut reg_1_output_0);
-        graph.add_edge(&mut outer_output_1, &mut reg_2_output_1);
+        let outer_output_0 = graph.add_node(NodeKind::Output(0));
+        let outer_output_1 = graph.add_node(NodeKind::Output(1));
+        graph.add_edge(&outer_output_0, &reg_1_output_0);
+        graph.add_edge(&outer_output_1, &reg_2_output_1);
 
-        let mut expected = HashMap::new();
-        expected.insert(
-            ComponentOutput::new(&reg_1, 0),
-            vec![0].into_iter().collect::<HashSet<_>>(),
-        );
-        expected.insert(
-            ComponentOutput::new(&reg_2, 1),
-            vec![1].into_iter().collect::<HashSet<_>>(),
-        );
+        let expected = [
+            (
+                outer_output_0,
+                vec![reg_1_output_0].into_iter().collect::<HashSet<_>>(),
+            ),
+            (
+                outer_output_1,
+                vec![reg_2_output_1].into_iter().collect::<HashSet<_>>(),
+            ),
+        ]
+        .into_iter()
+        .collect::<HashMap<_, _>>();
 
         let mapping = graph.outer_output_mapping(&graph.find_disjointed_node_sets());
 
@@ -460,18 +370,18 @@ mod tests {
     #[test]
     #[should_panic]
     fn converts_graph_into_component_logic() {
-        let comp = Rc::new(DigitalComponent::named(1, 1, &test, "test"));
+        let comp = Rc::new(DigitalComponent::named(1, 1, Rc::new(test), "test"));
         let a = NodeKind::ComponentInput(ComponentInput::new(&comp, 0));
         let b = NodeKind::Joint;
         let c = NodeKind::Joint;
         let d = NodeKind::Joint;
         let mut graph = Graph::default();
-        let mut a_node = graph.add_node(a);
-        let mut b_node = graph.add_node(b);
+        let a_node = graph.add_node(a);
+        let b_node = graph.add_node(b);
         let _c_node = graph.add_node(c);
-        let mut d_node = graph.add_node(d);
-        graph.add_edge(&mut a_node, &mut b_node);
-        graph.add_edge(&mut d_node, &mut b_node);
+        let d_node = graph.add_node(d);
+        graph.add_edge(&a_node, &b_node);
+        graph.add_edge(&d_node, &b_node);
 
         let _result = graph.finalize();
     }

@@ -1,4 +1,5 @@
 use std::hash::{Hash, Hasher};
+use std::rc::Rc;
 use std::{fmt, ptr};
 
 use crate::BitState;
@@ -8,42 +9,53 @@ use crate::BitState;
 /// Return [`true`] if output values changed
 pub type ComponentLogic = dyn Fn(&[BitState]) -> Vec<BitState>;
 
-pub struct DigitalComponent<'a> {
+pub struct DigitalComponent {
     name: String,
     inputs: Vec<BitState>,
     outputs: Vec<BitState>,
-    func: &'a ComponentLogic,
+    func: Rc<ComponentLogic>,
 }
 
-impl PartialEq for DigitalComponent<'_> {
+impl Clone for DigitalComponent {
+    fn clone(&self) -> Self {
+        DigitalComponent::named(
+            self.inputs.len(),
+            self.outputs.len(),
+            Rc::clone(&self.func),
+            &self.name,
+        )
+    }
+}
+
+impl PartialEq for DigitalComponent {
     fn eq(&self, rhs: &Self) -> bool {
         ptr::addr_eq(self, rhs)
     }
 }
 
-impl Eq for DigitalComponent<'_> {}
+impl Eq for DigitalComponent {}
 
-impl Hash for DigitalComponent<'_> {
+impl Hash for DigitalComponent {
     fn hash<H: Hasher>(&self, state: &mut H) {
         ptr::addr_of!(*self).hash(state);
     }
 }
 
-impl<'a> DigitalComponent<'a> {
+impl DigitalComponent {
     pub fn new(
         input_number: usize,
         output_number: usize,
-        func: &'a ComponentLogic,
-    ) -> DigitalComponent<'a> {
-        DigitalComponent::named(input_number, output_number, func, "")
+        func: Rc<ComponentLogic>,
+    ) -> DigitalComponent {
+        DigitalComponent::named(input_number, output_number, Rc::clone(&func), "")
     }
 
     pub fn named(
         input_number: usize,
         output_number: usize,
-        func: &'a ComponentLogic,
+        func: Rc<ComponentLogic>,
         name: &str,
-    ) -> DigitalComponent<'a> {
+    ) -> DigitalComponent {
         let mut dc = DigitalComponent {
             name: String::from(name),
             inputs: vec![BitState::Undefined; input_number],
@@ -112,8 +124,8 @@ impl<'a> DigitalComponent<'a> {
     }
 }
 
-impl fmt::Display for DigitalComponent<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl fmt::Display for DigitalComponent {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         let inputs: String = self
             .inputs
             .iter()
@@ -142,8 +154,8 @@ impl fmt::Display for DigitalComponent<'_> {
     }
 }
 
-impl fmt::Debug for DigitalComponent<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl fmt::Debug for DigitalComponent {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         fmt::Display::fmt(self, f)
     }
 }

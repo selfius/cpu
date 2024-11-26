@@ -1,11 +1,12 @@
 use crate::{BitState, DigitalComponent};
+use std::rc::Rc;
 
-pub fn new<'a>() -> DigitalComponent<'a> {
+pub fn new() -> DigitalComponent {
     named("")
 }
 
-pub fn named<'a>(name: &str) -> DigitalComponent<'a> {
-    DigitalComponent::named(2, 1, &nand, name)
+pub fn named(name: &str) -> DigitalComponent {
+    DigitalComponent::named(2, 1, Rc::new(nand), name)
 }
 
 fn nand(input: &[BitState]) -> Vec<BitState> {
@@ -26,7 +27,7 @@ mod tests {
 
     #[test]
     fn nand_gate() {
-        let mut nand_component = DigitalComponent::new(2, 1, &nand);
+        let mut nand_component = DigitalComponent::new(2, 1, Rc::new(nand));
         assert_eq!(nand_component.get_output(0), &BitState::Undefined);
 
         nand_component.set_input(0, &BitState::On);
