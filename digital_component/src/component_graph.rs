@@ -163,7 +163,7 @@ impl Graph {
         let uf_component_indices = self.find_disjointed_node_sets();
         let _outputs_to_inputs = self.output_to_input_mapping(&uf_component_indices);
         let outer_input_mapping = self.outer_input_mapping(&uf_component_indices);
-        let _outer_output_mapping = self.outer_output_mapping(&uf_component_indices);
+        let outer_output_mapping = self.outer_output_mapping(&uf_component_indices);
 
         let component_logic =
             move |input_bits: &[BitState], output_bits: &RefCell<Vec<BitState>>| {
@@ -193,27 +193,12 @@ impl Graph {
                         )
                     })
                     .collect::<HashMap<_, _>>();
-                for (outer_input_ref, nested_input_ref) in
-                    outer_input_mapping
-                        .iter()
-                        .flat_map(|(input_idx, node_set)| {
-                            node_set.iter().map(move |node_ref| (input_idx, node_ref))
-                        })
-                {
-                    if let (
-                        NodeKind::Input(input_idx),
-                        NodeKind::ComponentInput(ComponentInput { component, pin }),
-                    ) = (
-                        nodes[*outer_input_ref].clone(),
-                        nodes[*nested_input_ref].clone(),
-                    ) {
-                        if let Some(IoState { inputs, .. }) =
-                            nested_components_state.get_mut(&component)
-                        {
-                            inputs[pin] = input_bits[input_idx];
-                        }
-                    }
-                }
+                propagate_outer_input(
+                    &nodes,
+                    &mut nested_components_state,
+                    input_bits,
+                    &outer_input_mapping,
+                );
 
                 //TODO vvv this is rougly how I'd call every functions from nested components
                 if let [first, ..] = components[..] {
@@ -222,13 +207,78 @@ impl Graph {
                     (the_func)(&[], &out_ref);
                 }
 
-                output_bits.borrow_mut()[0] = BitState::On;
+                propagate_to_outer_output(
+                    &nodes,
+                    &mut nested_components_state,
+                    output_bits,
+                    &outer_output_mapping,
+                );
 
                 println!("{:?}", nested_components_state);
 
-                unimplemented!("resolve state and map output")
+                //unimplemented!("resolve state")
             };
         Box::new(component_logic)
+    }
+}
+
+fn propagate_outer_input(
+    nodes: &[NodeKind],
+    nested_components_state: &mut HashMap<Rc<DigitalComponent>, IoState>,
+    input_bits: &[BitState],
+    outer_input_mapping: &HashMap<GraphNodeRef, HashSet<GraphNodeRef>>,
+) {
+    for (outer_input_ref, nested_input_ref) in
+        outer_input_mapping
+            .iter()
+            .flat_map(|(input_idx, node_set)| {
+                node_set.iter().map(move |node_ref| (input_idx, node_ref))
+            })
+    {
+        if let (
+            NodeKind::Input(input_idx),
+            NodeKind::ComponentInput(ComponentInput { component, pin }),
+        ) = (
+            nodes[*outer_input_ref].clone(),
+            nodes[*nested_input_ref].clone(),
+        ) {
+            if let Some(IoState { inputs, .. }) = nested_components_state.get_mut(&component) {
+                inputs[pin] = input_bits[input_idx];
+            }
+        }
+    }
+}
+
+fn propagate_to_outer_output(
+    nodes: &[NodeKind],
+    nested_components_state: &mut HashMap<Rc<DigitalComponent>, IoState>,
+    output_bits: &RefCell<Vec<BitState>>,
+    outer_output_mapping: &HashMap<GraphNodeRef, HashSet<GraphNodeRef>>,
+) {
+    for (outer_output_ref, nested_output_ref) in
+        outer_output_mapping
+            .iter()
+            .flat_map(|(output_idx, node_set)| {
+                node_set.iter().map(move |node_ref| (output_idx, node_ref))
+            })
+    {
+        if let (
+            NodeKind::Output(output_idx),
+            NodeKind::ComponentOutput(ComponentOutput { component, pin }),
+        ) = (
+            nodes[*outer_output_ref].clone(),
+            nodes[*nested_output_ref].clone(),
+        ) {
+            if let Some(IoState { outputs, .. }) = nested_components_state.get_mut(&component) {
+                let mut output_bits = output_bits.borrow_mut();
+                let new_output_value = match (outputs[pin], output_bits[output_idx]) {
+                    (BitState::On, _) => BitState::On,
+                    (BitState::Off, BitState::Undefined) => BitState::Off,
+                    _ => output_bits[output_idx],
+                };
+                output_bits[output_idx] = new_output_value;
+            }
+        }
     }
 }
 
@@ -427,27 +477,6 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn propogates_outer_inputs_into_nested_components() {
-        let reg_1 = Rc::new(DigitalComponent::new(2, 2, Rc::new(test)));
-
-        let mut graph = Graph::default();
-        let reg_1_input_0 =
-            graph.add_node(NodeKind::ComponentInput(ComponentInput::new(&reg_1, 0)));
-        let reg_1_input_1 =
-            graph.add_node(NodeKind::ComponentInput(ComponentInput::new(&reg_1, 1)));
-        let input_0 = graph.add_node(NodeKind::Input(0));
-        let input_1 = graph.add_node(NodeKind::Input(1));
-
-        graph.add_edge(&reg_1_input_0, &input_0);
-        graph.add_edge(&reg_1_input_1, &input_1);
-
-        let comp_logic = graph.finalize();
-
-        let _ = &comp_logic(&[BitState::On, BitState::Off], &RefCell::new(vec![]));
-    }
-
-    #[test]
-    #[should_panic]
     fn converts_graph_into_component_logic() {
         let comp = Rc::new(DigitalComponent::new(1, 1, Rc::new(test)));
         let a = NodeKind::ComponentInput(ComponentInput::new(&comp, 0));
@@ -464,6 +493,8 @@ mod tests {
 
         let comp_logic = graph.finalize();
 
-        let _ = &comp_logic(&[BitState::On, BitState::Off], &RefCell::new(vec![]));
+        let output = RefCell::new(vec![BitState::Undefined]);
+        comp_logic(&[BitState::On, BitState::Off], &output);
+        assert_eq!(*output.borrow(), vec![BitState::On]);
     }
 }
