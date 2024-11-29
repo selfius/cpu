@@ -1,7 +1,7 @@
 mod nand;
 
-use digital_component::{BitState, DigitalComponent};
+use digital_component::BitState;
 
 fn main() {
-    let _unused = nand::new();
+    let _unused = nand::nand;
 }

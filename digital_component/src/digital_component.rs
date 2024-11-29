@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 use std::rc::Rc;
 use std::{fmt, ptr};
@@ -7,24 +8,13 @@ use crate::BitState;
 /// Maps vector of input to vector of outputs
 ///
 /// Return [`true`] if output values changed
-pub type ComponentLogic = dyn Fn(&[BitState]) -> Vec<BitState>;
+pub type ComponentLogic = dyn Fn(&[BitState], &RefCell<Vec<BitState>>);
 
+#[derive(Clone)]
 pub struct DigitalComponent {
-    name: String,
-    inputs: Vec<BitState>,
-    outputs: Vec<BitState>,
+    input_num: usize,
+    output_num: usize,
     func: Rc<ComponentLogic>,
-}
-
-impl Clone for DigitalComponent {
-    fn clone(&self) -> Self {
-        DigitalComponent::named(
-            self.inputs.len(),
-            self.outputs.len(),
-            Rc::clone(&self.func),
-            &self.name,
-        )
-    }
 }
 
 impl PartialEq for DigitalComponent {
@@ -42,115 +32,33 @@ impl Hash for DigitalComponent {
 }
 
 impl DigitalComponent {
-    pub fn new(
-        input_number: usize,
-        output_number: usize,
-        func: Rc<ComponentLogic>,
-    ) -> DigitalComponent {
-        DigitalComponent::named(input_number, output_number, Rc::clone(&func), "")
-    }
-
-    pub fn named(
-        input_number: usize,
-        output_number: usize,
-        func: Rc<ComponentLogic>,
-        name: &str,
-    ) -> DigitalComponent {
-        let mut dc = DigitalComponent {
-            name: String::from(name),
-            inputs: vec![BitState::Undefined; input_number],
-            outputs: vec![BitState::Undefined; output_number],
+    pub fn new(input_num: usize, output_num: usize, func: Rc<ComponentLogic>) -> DigitalComponent {
+        DigitalComponent {
+            input_num,
+            output_num,
             func,
-        };
-        dc.resolve();
-        dc
-    }
-
-    pub fn name(&self) -> &str {
-        &self.name
-    }
-
-    pub fn set_input(&mut self, idx: usize, value: &BitState) {
-        self.inputs[idx] = value.clone();
-    }
-
-    pub fn set_inputs(&mut self, values: Vec<u8>) {
-        assert!(
-            values.len() == self.inputs.len(),
-            "Expected exactly {} inputs",
-            self.inputs.len()
-        );
-        for (idx, input) in self.inputs.iter_mut().enumerate() {
-            *input = match values[idx] {
-                0 => BitState::Off,
-                1 => BitState::On,
-                x => panic!(
-                    "Values can be comprised only of 1s and 0s. Got {} instead",
-                    x
-                ),
-            }
         }
     }
 
     pub fn get_input_num(&self) -> usize {
-        self.inputs.len()
+        self.input_num
     }
 
-    pub fn get_output(&self, idx: usize) -> &BitState {
-        &self.outputs[idx]
+    pub fn get_output_num(&self) -> usize {
+        self.output_num
     }
 
-    pub fn get_outputs(&self) -> Vec<u8> {
-        self.outputs
-            .iter()
-            .map(|bit| match bit {
-                BitState::On => 1,
-                BitState::Off => 0,
-                _ => panic!("Some outputs are in undefined state. Can't serialize to 1s and 0s"),
-            })
-            .collect()
-    }
-
-    pub fn get_outputs_num(&self) -> usize {
-        self.outputs.len()
-    }
-
-    pub fn resolve(&mut self) -> bool {
-        let new_output = (self.func)(&self.inputs);
-
-        let changed = self.outputs.iter().ne(new_output.iter());
-        self.outputs = new_output;
-        changed
+    pub fn get_func(&self) -> Rc<ComponentLogic> {
+        self.func.clone()
     }
 }
 
 impl fmt::Display for DigitalComponent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let inputs: String = self
-            .inputs
-            .iter()
-            .map(|signal| match signal {
-                BitState::On => "1, ",
-                BitState::Off => "0, ",
-                BitState::Undefined => "u, ",
-            })
-            .collect();
-
-        let outputs: String = self
-            .outputs
-            .iter()
-            .map(|signal| match signal {
-                BitState::On => "1, ",
-                BitState::Off => "0, ",
-                BitState::Undefined => "u, ",
-            })
-            .collect();
-        let name = match self.name.is_empty() {
-            true => "unnamed",
-            false => &self.name,
-        };
-
-        write!(f, "{} inputs[{}] outputs[{}]", name, inputs, outputs)
+        f.write_fmt(format_args!(
+            "[ {} -> {} ]",
+            self.input_num, self.output_num
+        ))
     }
 }
 

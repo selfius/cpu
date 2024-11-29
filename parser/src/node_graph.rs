@@ -177,12 +177,11 @@ mod tests {
     use crate::parse;
     use crate::types::*;
     use digital_component::*;
+    use std::cell::RefCell;
     use std::collections::HashMap;
     use std::rc::Rc;
 
-    fn test(_: &[BitState]) -> Vec<BitState> {
-        vec![]
-    }
+    fn test(_: &[BitState], _: &RefCell<Vec<BitState>>) {}
 
     #[test]
     fn complete_graph() {
