@@ -4,10 +4,11 @@ pub use digital_component::{ComponentLogic, DigitalComponent};
 mod component_graph;
 pub use component_graph::{ComponentInput, ComponentOutput, Graph, GraphNodeRef, NodeKind};
 
-#[derive(Clone, Debug, PartialEq, Eq, Copy, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Copy, Hash, Default)]
 pub enum BitState {
     On,
     Off,
+    #[default]
     Undefined,
 }
 

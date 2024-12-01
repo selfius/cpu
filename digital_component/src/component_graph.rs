@@ -5,7 +5,7 @@ use std::fmt::{Debug, Error, Formatter};
 use std::hash::Hash;
 use std::rc::Rc;
 
-#[derive(Eq, PartialEq, Clone)]
+#[derive(Eq, PartialEq, Clone, Hash)]
 pub enum NodeKind {
     ComponentInput(ComponentInput),
     ComponentOutput(ComponentOutput),
@@ -161,7 +161,7 @@ impl Graph {
 
     pub fn finalize(self) -> Box<ComponentLogic> {
         let uf_component_indices = self.find_disjointed_node_sets();
-        let _outputs_to_inputs = self.output_to_input_mapping(&uf_component_indices);
+        let outputs_to_inputs = self.output_to_input_mapping(&uf_component_indices);
         let outer_input_mapping = self.outer_input_mapping(&uf_component_indices);
         let outer_output_mapping = self.outer_output_mapping(&uf_component_indices);
 
@@ -181,22 +181,35 @@ impl Graph {
                     })
                     .collect::<Vec<_>>();
 
-                let mut nested_components_state = components
+                let node_to_idx = nodes
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, node)| (node, idx))
+                    .collect::<HashMap<_, _>>();
+
+                let mut nested_components_inputs = components
                     .iter()
                     .map(|component| {
                         (
                             Rc::clone(component),
-                            IoState {
-                                inputs: vec![BitState::Undefined; component.get_input_num()],
-                                outputs: vec![BitState::Undefined; component.get_output_num()],
-                            },
+                            vec![BitState::Undefined; component.get_input_num()],
+                        )
+                    })
+                    .collect::<HashMap<_, _>>();
+
+                let mut nested_components_outputs = components
+                    .iter()
+                    .map(|component| {
+                        (
+                            Rc::clone(component),
+                            vec![BitState::Undefined; component.get_output_num()],
                         )
                     })
                     .collect::<HashMap<_, _>>();
 
                 let mut dirty_components = propagate_outer_input(
                     &nodes,
-                    &mut nested_components_state,
+                    &mut nested_components_inputs,
                     input_bits,
                     &outer_input_mapping,
                 );
@@ -208,24 +221,53 @@ impl Graph {
 
                 while let Some(nested_component) = dirty_components.pop() {
                     already_dirty.remove(&nested_component);
-                    if let Some(IoState {
-                        inputs,
-                        ref mut outputs,
-                    }) = nested_components_state.get_mut(&nested_component)
-                    {
+                    if let Some(outputs) = nested_components_outputs.get_mut(&nested_component) {
+                        let inputs = nested_components_inputs.get(&nested_component).unwrap();
                         // dark side is a pathway to many abilities...
                         let stolen = std::mem::take(outputs);
                         let outputs_to_pass = RefCell::new(stolen);
                         (nested_component.get_func())(inputs, &outputs_to_pass);
                         std::mem::swap(&mut outputs_to_pass.take(), outputs);
-                        // TODO if we changed outputs we need to find everything
-                        // that is connected to the outputs and mark it as dirty as well
+
+                        // propagate the signal to dependant components
+                        for (pin, output_bit) in outputs.iter().enumerate() {
+                            let output_pin = ComponentOutput::new(&nested_component, pin);
+                            let output_pin_idx = node_to_idx
+                                .get(&NodeKind::ComponentOutput(output_pin.clone()))
+                                .unwrap_or_else(|| {
+                                    panic!("we processed this output, it must be present among the nodes {:?}", &output_pin)
+                                });
+                            let connected_input_indices = outputs_to_inputs.get(output_pin_idx);
+                            for connected_input_node in connected_input_indices
+                                .iter()
+                                .flat_map(|x| *x)
+                                .map(|input_idx| &nodes[*input_idx])
+                            {
+                                if let NodeKind::ComponentInput(connected_input_node) =
+                                    connected_input_node
+                                {
+                                    let connected_inputs_bits = nested_components_inputs
+                                        .get_mut(&connected_input_node.component)
+                                        .unwrap();
+                                    if connected_inputs_bits[connected_input_node.pin]
+                                        != *output_bit
+                                    {
+                                        connected_inputs_bits[connected_input_node.pin] =
+                                            *output_bit;
+                                        dirty_components
+                                            .push(connected_input_node.component.clone());
+                                    }
+                                } else {
+                                    panic!("this is impossible");
+                                }
+                            }
+                        }
                     }
                 }
 
                 propagate_to_outer_output(
                     &nodes,
-                    &mut nested_components_state,
+                    &mut nested_components_outputs,
                     output_bits,
                     &outer_output_mapping,
                 );
@@ -236,7 +278,7 @@ impl Graph {
 
 fn propagate_outer_input(
     nodes: &[NodeKind],
-    nested_components_state: &mut HashMap<Rc<DigitalComponent>, IoState>,
+    nested_components_state: &mut HashMap<Rc<DigitalComponent>, Vec<BitState>>,
     input_bits: &[BitState],
     outer_input_mapping: &HashMap<GraphNodeRef, HashSet<GraphNodeRef>>,
 ) -> Vec<Rc<DigitalComponent>> {
@@ -256,7 +298,7 @@ fn propagate_outer_input(
             nodes[*outer_input_ref].clone(),
             nodes[*nested_input_ref].clone(),
         ) {
-            if let Some(IoState { inputs, .. }) = nested_components_state.get_mut(&component) {
+            if let Some(inputs) = nested_components_state.get_mut(&component) {
                 inputs[pin] = input_bits[input_idx];
                 if !touched_input_set.contains(&component) {
                     touched_input_components.push(component.clone());
@@ -270,7 +312,7 @@ fn propagate_outer_input(
 
 fn propagate_to_outer_output(
     nodes: &[NodeKind],
-    nested_components_state: &mut HashMap<Rc<DigitalComponent>, IoState>,
+    nested_components_outputs: &mut HashMap<Rc<DigitalComponent>, Vec<BitState>>,
     output_bits: &RefCell<Vec<BitState>>,
     outer_output_mapping: &HashMap<GraphNodeRef, HashSet<GraphNodeRef>>,
 ) {
@@ -288,7 +330,7 @@ fn propagate_to_outer_output(
             nodes[*outer_output_ref].clone(),
             nodes[*nested_output_ref].clone(),
         ) {
-            if let Some(IoState { outputs, .. }) = nested_components_state.get_mut(&component) {
+            if let Some(outputs) = nested_components_outputs.get_mut(&component) {
                 let mut output_bits = output_bits.borrow_mut();
                 let new_output_value = match (outputs[pin], output_bits[output_idx]) {
                     (BitState::On, _) => BitState::On,
@@ -299,12 +341,6 @@ fn propagate_to_outer_output(
             }
         }
     }
-}
-
-#[derive(PartialEq, Eq, Hash, Debug)]
-struct IoState {
-    inputs: Vec<BitState>,
-    outputs: Vec<BitState>,
 }
 
 impl Debug for Graph {
@@ -505,15 +541,24 @@ mod tests {
 
     #[test]
     fn converts_graph_into_component_logic() {
-        let comp = Rc::new(DigitalComponent::new(2, 2, Rc::new(test)));
+        let comp_0 = Rc::new(DigitalComponent::new(2, 2, Rc::new(test)));
         let mut graph = Graph::default();
-        let comp_input_0 = graph.add_node(NodeKind::ComponentInput(ComponentInput::new(&comp, 0)));
-        let comp_input_1 = graph.add_node(NodeKind::ComponentInput(ComponentInput::new(&comp, 1)));
+        let comp_0_input_0 =
+            graph.add_node(NodeKind::ComponentInput(ComponentInput::new(&comp_0, 0)));
+        let comp_0_input_1 =
+            graph.add_node(NodeKind::ComponentInput(ComponentInput::new(&comp_0, 1)));
 
-        let comp_output_0 =
-            graph.add_node(NodeKind::ComponentOutput(ComponentOutput::new(&comp, 0)));
-        let comp_output_1 =
-            graph.add_node(NodeKind::ComponentOutput(ComponentOutput::new(&comp, 1)));
+        let comp_0_output_0 =
+            graph.add_node(NodeKind::ComponentOutput(ComponentOutput::new(&comp_0, 0)));
+        let comp_0_output_1 =
+            graph.add_node(NodeKind::ComponentOutput(ComponentOutput::new(&comp_0, 1)));
+
+        let comp_1 = Rc::new(DigitalComponent::new(1, 1, Rc::new(test)));
+        let comp_1_input_0 =
+            graph.add_node(NodeKind::ComponentInput(ComponentInput::new(&comp_1, 0)));
+
+        let comp_1_output_0 =
+            graph.add_node(NodeKind::ComponentOutput(ComponentOutput::new(&comp_1, 0)));
 
         let input_0 = graph.add_node(NodeKind::Input(0));
         let input_1 = graph.add_node(NodeKind::Input(1));
@@ -521,15 +566,17 @@ mod tests {
         let output_0 = graph.add_node(NodeKind::Output(0));
         let output_1 = graph.add_node(NodeKind::Output(1));
 
-        graph.add_edge(&input_0, &comp_input_0);
-        graph.add_edge(&input_1, &comp_input_1);
+        graph.add_edge(&input_0, &comp_0_input_0);
+        graph.add_edge(&input_1, &comp_0_input_1);
 
-        graph.add_edge(&output_0, &comp_output_0);
-        graph.add_edge(&output_1, &comp_output_1);
+        graph.add_edge(&comp_0_output_1, &comp_1_input_0);
+
+        graph.add_edge(&output_0, &comp_0_output_0);
+        graph.add_edge(&output_1, &comp_1_output_0);
 
         let comp_logic = graph.finalize();
         let output = &RefCell::new(vec![BitState::Undefined; 2]);
         comp_logic(&[BitState::On, BitState::Off], output);
-        assert_eq!(*output.borrow(), vec![BitState::Off, BitState::On]);
+        assert_eq!(*output.borrow(), vec![BitState::Off, BitState::Off]);
     }
 }
