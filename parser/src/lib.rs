@@ -1,5 +1,4 @@
 use std::collections::{HashMap, VecDeque};
-use std::rc::Rc;
 
 mod types;
 use types::{Direction, Node, ParseError, ParsingMode, Symbol};
@@ -14,11 +13,11 @@ use structural_scan::{find_dangling_wires, structural_scan};
 mod node_graph;
 use node_graph::build_node_graph;
 
-use digital_component::{ComponentLogic, Graph};
+use digital_component::{ComponentLogicFactory, Graph};
 
 pub fn parse(
     source: &str,
-    comp_funcs: &HashMap<&str, Rc<ComponentLogic>>,
+    comp_funcs: &HashMap<&str, Box<ComponentLogicFactory>>,
 ) -> Result<Graph, ParseError> {
     // scan what take break into what would be equivalent of a 2D token
     let result = scan(source)?;

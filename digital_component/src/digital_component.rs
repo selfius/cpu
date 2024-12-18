@@ -1,6 +1,4 @@
-use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
-use std::rc::Rc;
 use std::{fmt, ptr};
 
 use crate::BitState;
@@ -8,13 +6,14 @@ use crate::BitState;
 /// Maps vector of input to vector of outputs
 ///
 /// Return [`true`] if output values changed
-pub type ComponentLogic = dyn Fn(&[BitState], &RefCell<Vec<BitState>>);
+pub type ComponentLogic = dyn FnMut(&[BitState], &mut [BitState]);
 
-#[derive(Clone)]
+pub type ComponentLogicFactory = dyn Fn() -> Box<ComponentLogic>;
+
 pub struct DigitalComponent {
     input_num: usize,
     output_num: usize,
-    func: Rc<ComponentLogic>,
+    func: Box<ComponentLogic>,
 }
 
 impl PartialEq for DigitalComponent {
@@ -32,7 +31,7 @@ impl Hash for DigitalComponent {
 }
 
 impl DigitalComponent {
-    pub fn new(input_num: usize, output_num: usize, func: Rc<ComponentLogic>) -> DigitalComponent {
+    pub fn new(input_num: usize, output_num: usize, func: Box<ComponentLogic>) -> DigitalComponent {
         DigitalComponent {
             input_num,
             output_num,
@@ -48,8 +47,8 @@ impl DigitalComponent {
         self.output_num
     }
 
-    pub fn get_func(&self) -> Rc<ComponentLogic> {
-        self.func.clone()
+    pub fn get_func(&mut self) -> &mut ComponentLogic {
+        &mut self.func
     }
 }
 

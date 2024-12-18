@@ -1,5 +1,5 @@
 mod digital_component;
-pub use digital_component::{ComponentLogic, DigitalComponent};
+pub use digital_component::{ComponentLogic, ComponentLogicFactory, DigitalComponent};
 
 mod component_graph;
 pub use component_graph::{ComponentInput, ComponentOutput, Graph, GraphNodeRef, NodeKind};

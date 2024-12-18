@@ -1,19 +1,18 @@
 use crate::types::{Node, ParseError, Position};
 use core::ops::Range;
 use digital_component::{
-    ComponentInput, ComponentLogic, ComponentOutput, DigitalComponent, Graph, GraphNodeRef,
+    ComponentInput, ComponentLogicFactory, ComponentOutput, DigitalComponent, Graph, GraphNodeRef,
     NodeKind,
 };
 use std::collections::HashMap;
-use std::rc::Rc;
 
 fn create_component_from_text_nodes(
     text_nodes: Vec<&Node>,
-    comp_funcs: &HashMap<&str, Rc<ComponentLogic>>,
+    comp_funcs: &HashMap<&str, Box<ComponentLogicFactory>>,
 ) -> DigitalComponent {
     if let Node::Text { value, .. } = text_nodes[0] {
-        let component_logic: &Rc<ComponentLogic> = comp_funcs.get(&value[..]).unwrap();
-        DigitalComponent::new(1, 1, Rc::clone(component_logic))
+        let comp_logic = (*comp_funcs.get(&value[..]).unwrap())();
+        DigitalComponent::new(2, 1, Box::new(comp_logic))
     } else {
         panic!("Expected function name got {:?}", text_nodes[0]);
     }
@@ -21,7 +20,7 @@ fn create_component_from_text_nodes(
 
 pub fn build_node_graph(
     mut nodes: Vec<Node>,
-    comp_funcs: &HashMap<&str, Rc<ComponentLogic>>,
+    comp_funcs: &HashMap<&str, Box<ComponentLogicFactory>>,
 ) -> Result<Graph, ParseError> {
     let mut graph = Graph::default();
     let mut position_to_node: HashMap<&Position, GraphNodeRef> = HashMap::default();
@@ -32,18 +31,19 @@ pub fn build_node_graph(
             inputs, outputs, ..
         } = box_node
         {
-            let component = Rc::new(create_component_from_text_nodes(text_nodes, comp_funcs));
+            let component =
+                graph.add_component(create_component_from_text_nodes(text_nodes, comp_funcs));
 
             for (idx, input_position) in inputs.iter().enumerate() {
                 let node_ref = graph.add_node(NodeKind::ComponentInput(ComponentInput::new(
-                    &component, idx,
+                    component, idx,
                 )));
                 position_to_node.insert(input_position, node_ref);
             }
 
             for (idx, output_position) in outputs.iter().enumerate() {
                 let node_ref = graph.add_node(NodeKind::ComponentOutput(ComponentOutput::new(
-                    &component, idx,
+                    component, idx,
                 )));
                 position_to_node.insert(output_position, node_ref);
             }
@@ -177,11 +177,12 @@ mod tests {
     use crate::parse;
     use crate::types::*;
     use digital_component::*;
-    use std::cell::RefCell;
-    use std::collections::HashMap;
-    use std::rc::Rc;
 
-    fn test(_: &[BitState], _: &RefCell<Vec<BitState>>) {}
+    use std::collections::HashMap;
+
+    fn test() -> Box<ComponentLogic> {
+        Box::new(|_: &[BitState], _: &mut [BitState]| {})
+    }
 
     #[test]
     fn complete_graph() {
@@ -211,9 +212,9 @@ mod tests {
                                  ┗━━━━━┛   
     ";
 
-        let mut comps: HashMap<&str, Rc<ComponentLogic>> = HashMap::new();
-        comps.insert("and", Rc::new(test));
-        comps.insert("not", Rc::new(test));
+        let mut comps: HashMap<&str, Box<ComponentLogicFactory>> = HashMap::new();
+        comps.insert("and", Box::new(test));
+        comps.insert("not", Box::new(test));
         let graph = parse(test_circuit, &comps).unwrap();
 
         //       ┏━━━┓
