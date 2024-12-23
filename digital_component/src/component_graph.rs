@@ -1,4 +1,5 @@
 use super::{BitState, ComponentLogic, DigitalComponent};
+use crate::debug_logger::{begin_context, end_context, log};
 use std::collections::{HashMap, HashSet};
 use std::fmt::{Debug, Error, Formatter};
 use std::hash::Hash;
@@ -32,10 +33,10 @@ impl Debug for NodeKind {
         f.write_fmt(format_args!(
             "{}",
             match self {
-                NodeKind::ComponentInput(ComponentPin { pin, .. }) =>
-                    format!("component_input({})", pin),
-                NodeKind::ComponentOutput(ComponentPin { pin, .. }) =>
-                    format!("component_output({})", pin),
+                NodeKind::ComponentInput(ComponentPin { pin, component }) =>
+                    format!("component_input({} {})", component, pin),
+                NodeKind::ComponentOutput(ComponentPin { pin, component }) =>
+                    format!("component_output({} {})", component, pin),
                 NodeKind::Input(idx) => format!("input({})", idx),
                 NodeKind::Output(idx) => format!("output({})", idx),
                 NodeKind::Joint => "joint".to_string(),
@@ -162,6 +163,8 @@ impl Graph {
     }
 
     pub fn finalize(mut self) -> Box<ComponentLogic> {
+        begin_context();
+        log(format_args!("{:?}", &self));
         let uf_component_indices = self.find_disjointed_node_sets();
         let outputs_to_inputs = self.output_to_input_mapping(&uf_component_indices);
         let outer_input_mapping = self.outer_input_mapping(&uf_component_indices);
@@ -182,6 +185,7 @@ impl Graph {
             .collect::<Vec<_>>();
 
         let component_logic = move |input_bits: &[BitState], output_bits: &mut [BitState]| {
+            begin_context();
             let node_to_idx = nodes
                 .iter()
                 .enumerate()
@@ -199,6 +203,10 @@ impl Graph {
                 let outputs = &mut nested_components_outputs[nested_component];
                 let inputs = &nested_components_inputs[nested_component];
                 self.components[nested_component].get_func()(inputs, outputs);
+                log(format_args!(
+                    "for component {} : {:?} -> {:?}",
+                    nested_component, &inputs, &outputs
+                ));
 
                 // propagate the signal to dependant components
                 for (pin, output_bit) in outputs.iter().enumerate() {
@@ -239,7 +247,9 @@ impl Graph {
                 output_bits,
                 &outer_output_mapping,
             );
+            end_context();
         };
+        end_context();
         Box::new(component_logic)
     }
 }
@@ -363,8 +373,8 @@ mod tests {
         assert_eq!(
             format!("{graph:?}"),
             "\
-            0_component_input(0) -> [ 1_joint]\n\
-            1_joint -> [ 0_component_input(0), 3_joint]\n\
+            0_component_input(0 0) -> [ 1_joint]\n\
+            1_joint -> [ 0_component_input(0 0), 3_joint]\n\
             2_joint -> [ ]\n\
             3_joint -> [ 1_joint]\n\
             "

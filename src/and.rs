@@ -27,7 +27,7 @@ mod tests {
     use digital_component::*;
 
     #[test]
-    fn nots() {
+    fn ands() {
         let mut and_gate = and();
 
         let mut output = vec![BitState::Undefined];

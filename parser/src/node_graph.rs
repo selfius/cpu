@@ -58,7 +58,6 @@ pub fn build_node_graph(
 
     add_edges(&mut graph, &nodes, &mut position_to_node);
 
-    println!("{:?}", graph);
     Ok(graph)
 }
 
@@ -244,36 +243,36 @@ mod tests {
         assert_eq!(
             format!("{graph:?}"),
             "\
-            0_component_input(0) -> [ 24_joint]\n\
-            1_component_output(0) -> [ 25_joint]\n\
-            2_component_input(0) -> [ 26_joint]\n\
-            3_component_output(0) -> [ 27_joint]\n\
-            4_component_input(0) -> [ 28_joint]\n\
-            5_component_output(0) -> [ 8_component_input(2)]\n\
-            6_component_input(0) -> [ 25_joint]\n\
-            7_component_input(1) -> [ 27_joint]\n\
-            8_component_input(2) -> [ 5_component_output(0)]\n\
-            9_component_output(0) -> [ 21_output(0)]\n\
-            10_component_input(0) -> [ 25_joint]\n\
-            11_component_input(1) -> [ 27_joint]\n\
-            12_component_input(2) -> [ 29_joint]\n\
-            13_component_output(0) -> [ 22_output(1)]\n\
-            14_component_input(0) -> [ 24_joint]\n\
-            15_component_input(1) -> [ 26_joint]\n\
-            16_component_input(2) -> [ 29_joint]\n\
-            17_component_output(0) -> [ 23_output(2)]\n\
+            0_component_input(0 0) -> [ 24_joint]\n\
+            1_component_output(0 0) -> [ 25_joint]\n\
+            2_component_input(1 0) -> [ 26_joint]\n\
+            3_component_output(1 0) -> [ 27_joint]\n\
+            4_component_input(2 0) -> [ 28_joint]\n\
+            5_component_output(2 0) -> [ 8_component_input(3 2)]\n\
+            6_component_input(3 0) -> [ 25_joint]\n\
+            7_component_input(3 1) -> [ 27_joint]\n\
+            8_component_input(3 2) -> [ 5_component_output(2 0)]\n\
+            9_component_output(3 0) -> [ 21_output(0)]\n\
+            10_component_input(4 0) -> [ 25_joint]\n\
+            11_component_input(4 1) -> [ 27_joint]\n\
+            12_component_input(4 2) -> [ 29_joint]\n\
+            13_component_output(4 0) -> [ 22_output(1)]\n\
+            14_component_input(5 0) -> [ 24_joint]\n\
+            15_component_input(5 1) -> [ 26_joint]\n\
+            16_component_input(5 2) -> [ 29_joint]\n\
+            17_component_output(5 0) -> [ 23_output(2)]\n\
             18_input(0) -> [ 24_joint]\n\
             19_input(1) -> [ 26_joint]\n\
             20_input(2) -> [ 28_joint]\n\
-            21_output(0) -> [ 9_component_output(0)]\n\
-            22_output(1) -> [ 13_component_output(0)]\n\
-            23_output(2) -> [ 17_component_output(0)]\n\
-            24_joint -> [ 0_component_input(0), 14_component_input(0), 18_input(0)]\n\
-            25_joint -> [ 10_component_input(0), 1_component_output(0), 6_component_input(0)]\n\
-            26_joint -> [ 15_component_input(1), 19_input(1), 2_component_input(0)]\n\
-            27_joint -> [ 11_component_input(1), 3_component_output(0), 7_component_input(1)]\n\
-            28_joint -> [ 20_input(2), 29_joint, 4_component_input(0)]\n\
-            29_joint -> [ 12_component_input(2), 16_component_input(2), 28_joint]\n\
+            21_output(0) -> [ 9_component_output(3 0)]\n\
+            22_output(1) -> [ 13_component_output(4 0)]\n\
+            23_output(2) -> [ 17_component_output(5 0)]\n\
+            24_joint -> [ 0_component_input(0 0), 14_component_input(5 0), 18_input(0)]\n\
+            25_joint -> [ 10_component_input(4 0), 1_component_output(0 0), 6_component_input(3 0)]\n\
+            26_joint -> [ 15_component_input(5 1), 19_input(1), 2_component_input(1 0)]\n\
+            27_joint -> [ 11_component_input(4 1), 3_component_output(1 0), 7_component_input(3 1)]\n\
+            28_joint -> [ 20_input(2), 29_joint, 4_component_input(2 0)]\n\
+            29_joint -> [ 12_component_input(4 2), 16_component_input(5 2), 28_joint]\n\
             "
         );
     }

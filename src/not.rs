@@ -19,7 +19,6 @@ pub fn not() -> Box<ComponentLogic> {
     .finalize()
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

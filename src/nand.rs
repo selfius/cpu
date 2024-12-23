@@ -1,12 +1,15 @@
-use crate::BitState;
+use crate::{
+    BitState,
+    BitState::{Off, On, Undefined},
+};
 
 pub fn nand(input: &[BitState], output: &mut [BitState]) {
     assert!(input.len() == 2, "NAND gate must have exactly two inputs");
     assert!(output.len() == 1, "NAND gate must have exactly one output");
     output[0] = match (&input[0], &input[1]) {
-        (BitState::On, BitState::On) => BitState::Off,
-        (BitState::Undefined, BitState::Undefined) => BitState::Undefined,
-        _ => BitState::On,
+        (On, On) => Off,
+        (Off, _) | (_, Off) => On,
+        (Undefined, _) | (_, Undefined) => Undefined,
     };
 }
 

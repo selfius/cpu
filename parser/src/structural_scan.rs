@@ -29,7 +29,6 @@ pub fn structural_scan(
 
         debug_num += 1;
         if debug_num > 10000 {
-            println!("{:?} {:?}", to_look_at, symbol);
             return Err(ParseError::Looping);
         }
 
@@ -56,7 +55,6 @@ pub fn structural_scan(
             to_look_at.push_back(to_back);
         }
     }
-    println!("visited: {visited:?}");
     Ok(components)
 }
 

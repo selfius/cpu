@@ -19,6 +19,16 @@ pub fn bit() -> Box<ComponentLogic> {
         ─┴─────────────┨    ┠───┨    ┃
                        ┗━━━━┛   ┗━━━━┛
     ",
+        //            ┏━━━━┓                ┏━━━━┓
+        //       12───0 0  2────┬───────────3 1  ┃
+        //          ┌─1    ┃    │15        ┌4    5┬──13
+        //          │ ┗━━━━┛    │          │┗━━━━┛│16
+        //          │           │          └─────┐│
+        //          │           │        ┌───────┼┘
+        //          │           │ ┏━━━━┓ │ ┏━━━━┓│
+        //          │17         └─6 2  ┃ └─9 3 11┘
+        //       14─┴─────────────7    8───10   ┃
+        //                        ┗━━━━┛   ┗━━━━┛
         &functions,
     )
     .unwrap()
@@ -35,6 +45,8 @@ mod tests {
         let mut bit_logic = bit();
 
         let mut output = vec![BitState::Undefined];
+
+        bit_logic(&[BitState::Off, BitState::Off], &mut output);
 
         bit_logic(&[BitState::Off, BitState::On], &mut output);
         assert_eq!(output, vec![BitState::Off]);
