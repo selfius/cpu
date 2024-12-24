@@ -32,6 +32,9 @@ mod tests {
 
         let mut output = vec![BitState::Undefined];
 
+        and_gate(&[BitState::Off, BitState::Undefined], &mut output);
+        assert_eq!(output, vec![BitState::Off]);
+
         and_gate(&[BitState::Off, BitState::Off], &mut output);
         assert_eq!(output, vec![BitState::Off]);
 

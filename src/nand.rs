@@ -8,8 +8,8 @@ pub fn nand(input: &[BitState], output: &mut [BitState]) {
     assert!(output.len() == 1, "NAND gate must have exactly one output");
     output[0] = match (&input[0], &input[1]) {
         (On, On) => Off,
-        (Off, _) | (_, Off) => On,
-        (Undefined, _) | (_, Undefined) => Undefined,
+        (Undefined, Undefined) => Undefined,
+        _ => On,
     };
 }
 

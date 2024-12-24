@@ -47,6 +47,7 @@ mod tests {
         let mut output = vec![BitState::Undefined];
 
         bit_logic(&[BitState::Off, BitState::Off], &mut output);
+        println!("=============");
 
         bit_logic(&[BitState::Off, BitState::On], &mut output);
         assert_eq!(output, vec![BitState::Off]);

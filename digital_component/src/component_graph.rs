@@ -247,6 +247,9 @@ impl Graph {
                 output_bits,
                 &outer_output_mapping,
             );
+
+            log(format_args!("output mapping: {:?}", &outer_output_mapping));
+            log(format_args!("output bits: {:?}", &output_bits));
             end_context();
         };
         end_context();
@@ -293,6 +296,7 @@ fn propagate_to_outer_output(
     output_bits: &mut [BitState],
     outer_output_mapping: &HashMap<GraphNodeRef, HashSet<GraphNodeRef>>,
 ) {
+    let mut new_output = vec![BitState::Undefined; output_bits.len()];
     for (outer_output_ref, nested_output_ref) in
         outer_output_mapping
             .iter()
@@ -307,14 +311,20 @@ fn propagate_to_outer_output(
             nodes[*outer_output_ref].clone(),
             nodes[*nested_output_ref].clone(),
         ) {
+            log(format_args!(
+                "copying from component {component} pin {pin} to output {output_idx}"
+            ));
             let outputs = &mut nested_components_outputs[component];
-            let new_output_value = match (outputs[pin], output_bits[output_idx]) {
+            let new_output_value = match (outputs[pin], new_output[output_idx]) {
                 (BitState::On, _) => BitState::On,
                 (BitState::Off, BitState::Undefined) => BitState::Off,
                 _ => output_bits[output_idx],
             };
-            output_bits[output_idx] = new_output_value;
+            new_output[output_idx] = new_output_value;
         }
+    }
+    for (output_bit, new_output_bit) in output_bits.iter_mut().zip(new_output.iter()) {
+        *output_bit = *new_output_bit;
     }
 }
 
