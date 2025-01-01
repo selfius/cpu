@@ -13,4 +13,5 @@ fn main() {
     let _ = and::and;
     let _ = register::register;
     let _ = decoder::decoder_2_to_4;
+    let _ = decoder::decoder;
 }
