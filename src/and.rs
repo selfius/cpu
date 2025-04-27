@@ -9,14 +9,15 @@ use std::collections::HashMap;
 
 pub fn and() -> Box<ComponentLogic> {
     let mut functions: HashMap<&str, Box<ComponentLogicFactory>> = HashMap::new();
-    functions.insert("nand", Box::new(|| Box::new(nand)));
-    functions.insert("not", Box::new(not));
+    functions.insert("NAND", Box::new(|| Box::new(nand)));
+    functions.insert("NOT", Box::new(not));
     parse(
         "
-        ┏━━━━┓ ┏━━━┓
-       ─┨nand┠─┨not┠─
-       ─┨    ┃ ┗━━━┛
-        ┗━━━━┛
+          ┏━━━━━━┓   ┏━━━━━┓
+       ───┨      ┃   ┃     ┃
+          ┃ NAND ┠───┨ NOT ┠────
+       ───┨      ┃   ┃     ┃
+          ┗━━━━━━┛   ┗━━━━━┛
     ",
         &functions,
     )
@@ -26,12 +27,14 @@ pub fn and() -> Box<ComponentLogic> {
 
 /// Cascade n - 1 AND gates to have an n input AND gate.
 /// For example for n = 3 an equivalent to the following circuit will be generated:
-///     ┏━━━┓
-///    ─┨and┠┐
-///    ─┨   ┃│ ┏━━━┓
-///     ┗━━━┛└─┨and┠─
-///    ────────┨   ┃
-///            ┗━━━┛
+///
+///     ┏━━━━━━━┓
+///  ───┨       ┃
+///     ┃  AND  ┠──┐  ┏━━━━━━━┓
+///  ───┨       ┃  └──┨       ┃
+///     ┗━━━━━━━┛     ┃  AND  ┠────
+///  ─────────────────┃       ┃
+///                   ┗━━━━━━━┛
 ///
 pub fn cascade_and(n: usize) -> Box<ComponentLogicFactory> {
     Box::new(move || -> Box<ComponentLogic> {
