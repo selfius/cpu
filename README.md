@@ -40,5 +40,5 @@ A more complex example of a 2 inputs to 4 outputs decoder:
 While this way of describing circuits makes it easier to understand the connections between components it definitely does not make it all that easier to code them (at least the act of typing them out)
 
 To help with there's a simple [nvim helper script](https://github.com/selfius/dotfiles/blob/master/.config/nvim/lua/localplugins/boxes/plugin/boxes.lua). While it's still full of bugs it mostly gets the job done:
-[!demo](https://github.com/selfius/cpu/blob/b1060703aa9edbb93ca519a820508bc3e9c9de63/static/demo.gif)
+![demo](https://raw.githubusercontent.com/selfius/cpu/b1060703aa9edbb93ca519a820508bc3e9c9de63/static/demo.gif)
 
